@@ -31,10 +31,6 @@ Crear un copiloto de navegación que:
 - Lectura confiable del DOM en sitios arbitrarios
 - Abstracción semántica del HTML
 
-**Qué NO hace**
-- No interactúa con la página
-- No usa LLM
-
 ---
 
 ### MVP 2 — Selección y referencia de elementos
@@ -49,9 +45,6 @@ Crear un copiloto de navegación que:
 - Correspondencia entre UI real y modelo interno
 - Referenciabilidad de elementos (base para acciones)
 - Manejo de páginas dinámicas (SPAs, contenido lazy)
-
-**Qué NO hace**
-- No ejecuta acciones automáticas
 
 ---
 
@@ -68,9 +61,6 @@ Crear un copiloto de navegación que:
 - Seguridad y reversibilidad de acciones
 - Robustez frente a cambios de estado
 
-**Qué NO hace**
-- No interpreta lenguaje natural
-
 ---
 
 ### MVP 4 — Agente con lenguaje natural (LLM)
@@ -85,9 +75,6 @@ Crear un copiloto de navegación que:
 - Traducción intención → acción
 - Control del LLM mediante esquemas estrictos
 - Flujo percepción–razonamiento–acción
-
-**Qué NO hace**
-- No aprende ni recuerda patrones entre sesiones
 
 ---
 
@@ -104,12 +91,9 @@ Crear un copiloto de navegación que:
 - Reducción de dependencia del DOM en bruto
 - Navegación más estable y eficiente
 
-**Qué NO hace**
-- No generaliza entre sitios distintos
-
 ---
 
-## Resumen Ejecutivo
+## Resumen
 
 | MVP | Rol | Capacidad | Riesgo que reduce |
 |-----|-----|-----------|-------------------|
@@ -158,22 +142,5 @@ WebCopilot/
 │   │   ├── widget.js           # UI flotante
 │   │   └── content.js          # Coordinador
 │   └── icons/
-├── docs/                        # Documentación adicional
 └── README.md
 ```
-
----
-
-## Contribuir
-
-1. Fork del repositorio
-2. Crear rama feature: `git checkout -b feature/nombre`
-3. Commit cambios: `git commit -m 'Add feature'`
-4. Push a la rama: `git push origin feature/nombre`
-5. Abrir Pull Request
-
----
-
-## Licencia
-
-MIT
