@@ -1,13 +1,13 @@
 /**
  * Widget - Widget flotante con Shadow DOM
- * MVP 2: Modo selección y referencias de elementos
+ * MVP 3: Ejecución de acciones sobre elementos
  */
 const Widget = (function() {
   'use strict';
 
   let container, shadowRoot, isMinimized = false, isDragging = false, dragOffset = { x: 0, y: 0 };
   let autoRefreshInterval = null, currentElementIds = new Set();
-  let selectionMode = false, selectedElements = new Map();
+  let selectionMode = false;
   const AUTO_REFRESH_DELAY = 1000;
 
   const STYLES = `
@@ -22,7 +22,7 @@ const Widget = (function() {
     .wc-controls { display: flex; gap: 8px; }
     .wc-btn { background: transparent; border: none; color: #6c7086; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 16px; transition: all 0.2s; }
     .wc-btn:hover { background: #45475a; color: #cdd6f4; }
-    .wc-content { max-height: 400px; overflow-y: auto; padding: 12px; }
+    .wc-content { max-height: 400px; overflow-y: auto; overflow-x: hidden; padding: 12px; }
     .wc-widget.minimized .wc-content { display: none; }
     .wc-summary { background: #313244; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .wc-summary-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c7086; margin-bottom: 8px; }
@@ -64,26 +64,35 @@ const Widget = (function() {
     .wc-selection-btn { background: #45475a; border: none; color: #cdd6f4; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all 0.2s; margin-right: 8px; }
     .wc-selection-btn:hover { background: #585b70; }
     .wc-selection-btn.active { background: #cba6f7; color: #1e1e2e; }
-    .wc-element.selected { border-left-color: #a6e3a1 !important; background: #2d4a3e; }
-    .wc-element.selected:hover { background: #3a5c4d; }
     .wc-element-reference { font-size: 9px; color: #89b4fa; font-family: monospace; margin-top: 4px; word-break: break-all; background: #1e1e2e; padding: 4px 6px; border-radius: 4px; }
-    .wc-selected-section { background: #2d4a3e; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #a6e3a1; }
-    .wc-selected-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #a6e3a1; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-    .wc-selected-count { background: #a6e3a1; color: #1e1e2e; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .wc-selected-list { display: flex; flex-direction: column; gap: 6px; }
-    .wc-selected-item { background: #313244; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
-    .wc-selected-info { flex: 1; }
-    .wc-selected-type { font-size: 10px; text-transform: uppercase; color: #6c7086; }
-    .wc-selected-text { font-size: 12px; color: #cdd6f4; margin-top: 2px; }
-    .wc-selected-ref { font-size: 9px; color: #89b4fa; font-family: monospace; margin-top: 4px; }
-    .wc-selected-status { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
-    .wc-selected-status.valid { background: #a6e3a1; color: #1e1e2e; }
-    .wc-selected-status.invalid { background: #f38ba8; color: #1e1e2e; }
-    .wc-remove-btn { background: #f38ba8; border: none; color: #1e1e2e; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px; }
-    .wc-remove-btn:hover { background: #eba0ac; }
-    .wc-clear-btn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
-    .wc-clear-btn:hover { background: #f38ba8; color: #1e1e2e; }
     .wc-mode-indicator { background: #cba6f7; color: #1e1e2e; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; animation: pulse 1s infinite; }
+    
+    /* MVP 3: Acciones inline en elemento */
+    .wc-element.expanded { background: #3b4261; }
+    .wc-element-actions { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #45475a; }
+    .wc-element.expanded .wc-element-actions { display: block; animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .wc-action-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+    .wc-action-btn { background: #45475a; border: none; color: #cdd6f4; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; }
+    .wc-action-btn:hover { background: #585b70; }
+    .wc-action-btn:active { transform: scale(0.95); }
+    .wc-action-btn.primary { background: #cba6f7; color: #1e1e2e; }
+    .wc-action-btn.primary:hover { background: #b490e0; }
+    .wc-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wc-action-input-group { display: none; margin-top: 8px; }
+    .wc-action-input-group.visible { display: flex; gap: 6px; }
+    .wc-action-input { flex: 1; background: #1e1e2e; border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; color: #cdd6f4; font-size: 12px; outline: none; }
+    .wc-action-input:focus { border-color: #cba6f7; }
+    .wc-action-input::placeholder { color: #6c7086; }
+    .wc-action-input-submit { background: #a6e3a1; color: #1e1e2e; padding: 8px 12px; }
+    .wc-action-input-submit:hover { background: #94d990; }
+    .wc-action-result { margin-top: 8px; padding: 6px 8px; border-radius: 4px; font-size: 10px; display: none; }
+    .wc-action-result.visible { display: block; }
+    .wc-action-result.success { background: rgba(166, 227, 161, 0.2); border: 1px solid #a6e3a1; color: #a6e3a1; }
+    .wc-action-result.error { background: rgba(243, 139, 168, 0.2); border: 1px solid #f38ba8; color: #f38ba8; }
+    .wc-action-select-group { display: none; margin-top: 8px; }
+    .wc-action-select-group.visible { display: flex; gap: 6px; }
+    .wc-action-select-group select { flex: 1; background: #1e1e2e; border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; color: #cdd6f4; font-size: 12px; }
   `;
 
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -95,42 +104,21 @@ const Widget = (function() {
 
   function renderElement(el) {
     const text = el.text || '(sin texto)';
-    const isSelected = selectedElements.has(el.id);
     let meta = '<span class="wc-element-zone">' + el.position.zone + '</span>';
     if (el.href) meta += '<span>→ ' + escapeHtml(el.href) + '</span>';
     if (el.inputType && el.inputType !== 'text') meta += '<span>tipo: ' + el.inputType + '</span>';
     if (el.isDisabled) meta += '<span>deshabilitado</span>';
     const refHtml = el.reference ? '<div class="wc-element-reference">' + escapeHtml(el.reference) + '</div>' : '';
-    return '<div class="wc-element type-' + el.type + (isSelected ? ' selected' : '') + '" data-element-id="' + el.id + '"><div class="wc-element-header"><span class="wc-element-type">' + el.type + '</span><span class="wc-element-id">' + el.id + '</span></div><div class="wc-element-text ' + (el.text ? '' : 'empty') + '">' + escapeHtml(text) + '</div><div class="wc-element-meta">' + meta + '</div>' + refHtml + '</div>';
-  }
-
-  // Renderizar sección de elementos seleccionados
-  function renderSelectedSection() {
-    if (selectedElements.size === 0) return '';
     
-    let items = '';
-    selectedElements.forEach((data, id) => {
-      const isValid = DOMInspector.isElementValid(id);
-      const statusClass = isValid ? 'valid' : 'invalid';
-      const statusText = isValid ? '✓' : '✗';
-      items += '<div class="wc-selected-item" data-selected-id="' + id + '">' +
-        '<div class="wc-selected-info">' +
-        '<div class="wc-selected-type">' + data.type + '</div>' +
-        '<div class="wc-selected-text">' + escapeHtml(data.text || '(sin texto)') + '</div>' +
-        '<div class="wc-selected-ref">' + escapeHtml(data.reference || '') + '</div>' +
-        '</div>' +
-        '<span class="wc-selected-status ' + statusClass + '">' + statusText + '</span>' +
-        '<button class="wc-remove-btn" data-remove-id="' + id + '">×</button>' +
-        '</div>';
-    });
-    
-    return '<div class="wc-selected-section">' +
-      '<div class="wc-selected-title">' +
-      '<span>Elementos seleccionados</span>' +
-      '<span class="wc-selected-count">' + selectedElements.size + '</span>' +
-      '</div>' +
-      '<div class="wc-selected-list">' + items + '</div>' +
+    // Sección de acciones (oculta por defecto)
+    const actionsHtml = '<div class="wc-element-actions">' +
+      '<div class="wc-action-buttons"></div>' +
+      '<div class="wc-action-input-group"><input type="text" class="wc-action-input" placeholder="Escribe el texto..."><button class="wc-action-btn wc-action-input-submit">⌨️</button></div>' +
+      '<div class="wc-action-select-group"><select class="wc-action-select"></select><button class="wc-action-btn wc-action-input-submit wc-select-submit">✓</button></div>' +
+      '<div class="wc-action-result"></div>' +
       '</div>';
+    
+    return '<div class="wc-element type-' + el.type + '" data-element-id="' + el.id + '"><div class="wc-element-header"><span class="wc-element-type">' + el.type + '</span><span class="wc-element-id">' + el.id + '</span></div><div class="wc-element-text ' + (el.text ? '' : 'empty') + '">' + escapeHtml(text) + '</div><div class="wc-element-meta">' + meta + '</div>' + refHtml + actionsHtml + '</div>';
   }
 
   function render(elements, summary) {
@@ -140,8 +128,7 @@ const Widget = (function() {
   function renderFull(elements, summary) {
     const html = elements.length ? elements.map(renderElement).join('') : '<div class="wc-empty"><div class="wc-empty-icon">🔍</div><div>No se encontraron elementos</div></div>';
     const modeIndicator = selectionMode ? '<span class="wc-mode-indicator">SELECCIÓN ACTIVA</span>' : '';
-    const selectedSection = renderSelectedSection();
-    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + selectedSection + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
+    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
     const t = document.createElement('template'); t.innerHTML = widget;
     shadowRoot.appendChild(t.content.cloneNode(true));
     currentElementIds = new Set(elements.map(function(e) { return e.id; }));
@@ -154,9 +141,6 @@ const Widget = (function() {
     const sumEl = widget.querySelector('.wc-summary');
     const tmp = document.createElement('div'); tmp.innerHTML = renderSummary(summary);
     sumEl.innerHTML = tmp.querySelector('.wc-summary').innerHTML;
-
-    // Actualizar sección de seleccionados
-    updateSelectedSection();
 
     const list = widget.querySelector('.wc-element-list');
     const newIds = new Set(elements.map(function(e) { return e.id; }));
@@ -182,8 +166,6 @@ const Widget = (function() {
           existing.classList.add('wc-element-updated');
           setTimeout(function() { existing.classList.remove('wc-element-updated'); }, 500);
         }
-        // Actualizar estado de selección
-        existing.classList.toggle('selected', selectedElements.has(el.id));
       } else {
         const t = document.createElement('template'); t.innerHTML = renderElement(el);
         const newEl = t.content.firstElementChild;
@@ -430,79 +412,52 @@ const Widget = (function() {
     return false;
   }
 
-  // Seleccionar elemento
+  // Seleccionar elemento - expande acciones en el widget
   function selectElement(domElement) {
-    console.log('🎯 selectElement:', domElement.tagName, domElement);
-    
-    let info = DOMInspector.getInfoByDOMElement(domElement);
-    console.log('📋 Info directa:', info);
+    const info = DOMInspector.getInfoByDOMElement(domElement);
     
     if (!info) {
-      // Intentar con el elemento encontrado por findInteractiveParent
-      // Puede que el target del click sea un hijo, no el elemento registrado
-      console.log('⚠️ Elemento no registrado directamente, buscando en registry...');
-      
-      // Forzar rescan
-      DOMInspector.scan();
-      info = DOMInspector.getInfoByDOMElement(domElement);
-      console.log('📋 Info después de rescan:', info);
-    }
-    
-    if (info) {
-      console.log('✅ Info encontrada:', info.id, info.type, info.text);
-      addToSelected(info);
-    } else {
-      console.log('❌ No se pudo obtener info del elemento');
-      // Último intento: crear una entrada manual para este elemento
-      console.log('🔄 Intentando inspección manual...');
-      const manualInfo = DOMInspector.inspectSingle?.(domElement);
-      if (manualInfo) {
-        console.log('✅ Inspección manual exitosa:', manualInfo);
-        addToSelected(manualInfo);
+      // Elemento no registrado, escaneamos primero
+      window.WebCopilot.refresh(true);
+      const newInfo = DOMInspector.getInfoByDOMElement(domElement);
+      if (newInfo) {
+        expandElementInWidget(newInfo.id);
+      } else {
+        // No se encontró, desactivar modo de todos modos
+        disableSelectionMode();
       }
-    }
-  }
-
-  // Agregar a seleccionados
-  function addToSelected(info) {
-    if (selectedElements.has(info.id)) {
-      // Ya está seleccionado, lo deseleccionamos
-      selectedElements.delete(info.id);
-    } else {
-      selectedElements.set(info.id, {
-        id: info.id,
-        type: info.type,
-        text: info.text,
-        reference: info.reference,
-        timestamp: Date.now()
-      });
-    }
-    updateSelectedSection();
-    updateElementSelection(info.id);
-  }
-
-  // Actualizar sección de seleccionados
-  function updateSelectedSection() {
-    const content = shadowRoot.querySelector('.wc-content');
-    let section = content.querySelector('.wc-selected-section');
-    
-    if (selectedElements.size === 0) {
-      if (section) section.remove();
       return;
     }
     
-    const newHtml = renderSelectedSection();
-    const tmp = document.createElement('div');
-    tmp.innerHTML = newHtml;
-    const newSection = tmp.firstElementChild;
+    expandElementInWidget(info.id);
+  }
+
+  // Desactivar modo selección
+  function disableSelectionMode() {
+    if (!selectionMode) return;
+    selectionMode = false;
+    document.removeEventListener('click', handleSelectionClick, true);
+    DOMInspector.clearHighlight();
+    updateModeIndicator();
     
-    if (section) {
-      section.innerHTML = newSection.innerHTML;
-    } else {
-      content.insertBefore(newSection, content.firstChild);
-    }
+    const btn = shadowRoot.querySelector('#wc-selection');
+    if (btn) btn.classList.remove('active');
+  }
+
+  // Expandir elemento en el widget y hacer scroll
+  function expandElementInWidget(elementId) {
+    const elementDiv = shadowRoot.querySelector('[data-element-id="' + elementId + '"]');
+    if (!elementDiv) return;
     
-    attachSelectedEvents();
+    // Hacer scroll en el widget para mostrar el elemento
+    const content = shadowRoot.querySelector('.wc-content');
+    elementDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Desactivar modo selección después del scroll
+    disableSelectionMode();
+    
+    // Expandir las acciones del elemento
+    toggleElementActions(elementId, elementDiv);
   }
 
   // Actualizar indicador de modo
@@ -520,18 +475,12 @@ const Widget = (function() {
     }
   }
 
-  // Actualizar clase de selección en elemento
-  function updateElementSelection(elementId) {
-    const el = shadowRoot.querySelector('[data-element-id="' + elementId + '"]');
-    if (el) {
-      el.classList.toggle('selected', selectedElements.has(elementId));
-    }
-  }
-
   // Eventos de elementos en la lista
   function attachElementEvents() {
     shadowRoot.querySelectorAll('.wc-element').forEach(attachSingleElementEvents);
   }
+
+  let currentExpandedElement = null; // Elemento expandido actualmente
 
   function attachSingleElementEvents(el) {
     el.addEventListener('mouseenter', function() {
@@ -541,66 +490,244 @@ const Widget = (function() {
     });
     
     el.addEventListener('mouseleave', function() {
-      DOMInspector.clearHighlight();
-    });
-    
-    el.addEventListener('click', function() {
-      const id = el.dataset.elementId;
-      const domEl = DOMInspector.getDOMElementById(id);
-      if (domEl) {
-        domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        DOMInspector.highlightSelected(domEl);
-        setTimeout(() => DOMInspector.clearHighlight(), 1000);
+      if (!el.classList.contains('expanded')) {
+        DOMInspector.clearHighlight();
       }
     });
+    
+    el.addEventListener('click', function(e) {
+      // Ignorar clicks en botones de acción
+      if (e.target.closest('.wc-action-btn') || e.target.closest('.wc-action-input') || e.target.closest('.wc-action-select')) {
+        return;
+      }
+      
+      const id = el.dataset.elementId;
+      toggleElementActions(id, el);
+    });
   }
 
-  // Eventos de sección seleccionados
-  function attachSelectedEvents() {
-    shadowRoot.querySelectorAll('.wc-remove-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const id = btn.dataset.removeId;
-        selectedElements.delete(id);
-        updateSelectedSection();
-        updateElementSelection(id);
+  // ============ MVP 3: ACCIONES INLINE ============
+
+  function toggleElementActions(elementId, elementDiv) {
+    // Si ya está expandido, colapsar
+    if (elementDiv.classList.contains('expanded')) {
+      collapseElement(elementDiv);
+      return;
+    }
+    
+    // Colapsar elemento anteriormente expandido
+    if (currentExpandedElement && currentExpandedElement !== elementDiv) {
+      collapseElement(currentExpandedElement);
+    }
+    
+    // Expandir este elemento
+    expandElement(elementId, elementDiv);
+  }
+
+  function expandElement(elementId, elementDiv) {
+    const info = DOMInspector.getInfoByDOMElement(DOMInspector.getDOMElementById(elementId));
+    if (!info) return;
+    
+    const domEl = DOMInspector.getDOMElementById(elementId);
+    const actions = getAvailableActions(info, domEl);
+    
+    // Poblar botones de acción
+    const buttonsContainer = elementDiv.querySelector('.wc-action-buttons');
+    buttonsContainer.innerHTML = actions.map(a => 
+      `<button class="wc-action-btn ${a.primary ? 'primary' : ''}" data-action="${a.action}" ${a.disabled ? 'disabled' : ''}>${a.icon} ${a.label}</button>`
+    ).join('');
+    
+    // Poblar select si es dropdown
+    if (info.tag === 'select' && domEl) {
+      const selectEl = elementDiv.querySelector('.wc-action-select');
+      selectEl.innerHTML = '';
+      Array.from(domEl.options).forEach((opt, i) => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.textContent || `Opción ${i + 1}`;
+        if (domEl.selectedIndex === i) option.selected = true;
+        selectEl.appendChild(option);
       });
+    }
+    
+    // Limpiar estado anterior
+    elementDiv.querySelector('.wc-action-input-group').classList.remove('visible');
+    elementDiv.querySelector('.wc-action-select-group').classList.remove('visible');
+    elementDiv.querySelector('.wc-action-result').className = 'wc-action-result';
+    elementDiv.querySelector('.wc-action-input').value = '';
+    
+    // Expandir
+    elementDiv.classList.add('expanded');
+    currentExpandedElement = elementDiv;
+    
+    // Highlight permanente
+    if (domEl) {
+      DOMInspector.highlightSelected(domEl);
+    }
+    
+    // Agregar eventos a los botones
+    attachInlineActionEvents(elementDiv, elementId, info);
+  }
+
+  function collapseElement(elementDiv) {
+    elementDiv.classList.remove('expanded');
+    elementDiv.querySelector('.wc-action-input-group').classList.remove('visible');
+    elementDiv.querySelector('.wc-action-select-group').classList.remove('visible');
+    if (currentExpandedElement === elementDiv) {
+      currentExpandedElement = null;
+    }
+    DOMInspector.clearHighlight();
+  }
+
+  function attachInlineActionEvents(elementDiv, elementId, info) {
+    // Botones de acción
+    elementDiv.querySelectorAll('.wc-action-btn[data-action]').forEach(btn => {
+      btn.onclick = async function(e) {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        
+        if (action === 'type') {
+          elementDiv.querySelector('.wc-action-input-group').classList.add('visible');
+          elementDiv.querySelector('.wc-action-input').focus();
+          return;
+        }
+        
+        if (action === 'select') {
+          elementDiv.querySelector('.wc-action-select-group').classList.add('visible');
+          return;
+        }
+        
+        await executeInlineAction(action, elementId, null, elementDiv);
+      };
     });
     
-    shadowRoot.querySelectorAll('.wc-selected-item').forEach(item => {
-      item.addEventListener('mouseenter', function() {
-        const id = item.dataset.selectedId;
-        const domEl = DOMInspector.getDOMElementById(id);
-        if (domEl) DOMInspector.highlightElement(domEl);
-      });
-      
-      item.addEventListener('mouseleave', function() {
-        DOMInspector.clearHighlight();
-      });
-      
-      item.addEventListener('click', function(e) {
-        if (e.target.closest('.wc-remove-btn')) return;
-        const id = item.dataset.selectedId;
-        const domEl = DOMInspector.getDOMElementById(id);
-        if (domEl) {
-          domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          DOMInspector.highlightSelected(domEl);
-          setTimeout(() => DOMInspector.clearHighlight(), 1000);
+    // Submit de texto
+    const inputSubmit = elementDiv.querySelector('.wc-action-input-submit:not(.wc-select-submit)');
+    if (inputSubmit) {
+      inputSubmit.onclick = async function(e) {
+        e.stopPropagation();
+        const text = elementDiv.querySelector('.wc-action-input').value;
+        if (text) {
+          await executeInlineAction('type', elementId, text, elementDiv);
         }
-      });
-    });
+      };
+    }
+    
+    // Enter en input
+    const textInput = elementDiv.querySelector('.wc-action-input');
+    if (textInput) {
+      textInput.onclick = e => e.stopPropagation();
+      textInput.onkeydown = async function(e) {
+        if (e.key === 'Enter') {
+          e.stopPropagation();
+          const text = this.value;
+          if (text) {
+            await executeInlineAction('type', elementId, text, elementDiv);
+          }
+        }
+      };
+    }
+    
+    // Submit de select
+    const selectSubmit = elementDiv.querySelector('.wc-select-submit');
+    if (selectSubmit) {
+      selectSubmit.onclick = async function(e) {
+        e.stopPropagation();
+        const value = elementDiv.querySelector('.wc-action-select').value;
+        await executeInlineAction('select', elementId, value, elementDiv);
+      };
+    }
+    
+    // Click en select no cierra
+    const selectEl = elementDiv.querySelector('.wc-action-select');
+    if (selectEl) {
+      selectEl.onclick = e => e.stopPropagation();
+    }
   }
 
-  // Obtener elementos seleccionados
-  function getSelectedElements() {
-    return Array.from(selectedElements.values());
+  function getAvailableActions(info, domEl) {
+    const actions = [];
+    const type = info.type;
+    const tag = info.tag;
+    
+    // Click siempre disponible
+    actions.push({ action: 'click', icon: '👆', label: 'Click', primary: type === 'action' || type === 'navigation' });
+    
+    // Type para inputs
+    if (type === 'input' || tag === 'input' || tag === 'textarea' || domEl?.isContentEditable) {
+      actions.push({ action: 'type', icon: '⌨️', label: 'Escribir', primary: true });
+    }
+    
+    // Select para dropdowns
+    if (tag === 'select') {
+      actions.push({ action: 'select', icon: '📋', label: 'Elegir', primary: true });
+    }
+    
+    // Check para checkboxes/radios
+    if (domEl?.type === 'checkbox' || domEl?.type === 'radio') {
+      const isChecked = domEl.checked;
+      actions.push({ action: 'check', icon: isChecked ? '☑️' : '☐', label: isChecked ? 'Desmarcar' : 'Marcar', primary: true });
+    }
+    
+    // Focus
+    actions.push({ action: 'focus', icon: '🎯', label: 'Focus' });
+    
+    // Hover
+    actions.push({ action: 'hover', icon: '🖱️', label: 'Hover' });
+    
+    return actions;
   }
 
-  // Limpiar selección
-  function clearSelection() {
-    selectedElements.clear();
-    updateSelectedSection();
-    shadowRoot.querySelectorAll('.wc-element.selected').forEach(el => el.classList.remove('selected'));
+  async function executeInlineAction(action, elementId, value, elementDiv) {
+    const resultEl = elementDiv.querySelector('.wc-action-result');
+    resultEl.className = 'wc-action-result visible';
+    resultEl.textContent = '⏳ Ejecutando...';
+    
+    let result;
+    
+    try {
+      switch (action) {
+        case 'click':
+          result = await Actions.click(elementId);
+          break;
+        case 'type':
+          result = await Actions.type(elementId, value, { instant: false, delayMs: 20 });
+          break;
+        case 'focus':
+          result = await Actions.focus(elementId);
+          break;
+        case 'scroll':
+          result = await Actions.scroll(elementId);
+          break;
+        case 'hover':
+          result = await Actions.hover(elementId);
+          break;
+        case 'select':
+          result = await Actions.select(elementId, value);
+          break;
+        case 'check':
+          result = await Actions.check(elementId);
+          break;
+        default:
+          result = { success: false, reason: 'Acción desconocida' };
+      }
+      
+      if (result.success) {
+        resultEl.className = 'wc-action-result visible success';
+        resultEl.textContent = `✓ ${action} OK`;
+        
+        // Colapsar después de acción exitosa (excepto hover)
+        if (action !== 'hover') {
+          setTimeout(() => collapseElement(elementDiv), 1200);
+        }
+      } else {
+        resultEl.className = 'wc-action-result visible error';
+        resultEl.textContent = `✗ ${result.reason}`;
+      }
+    } catch (err) {
+      resultEl.className = 'wc-action-result visible error';
+      resultEl.textContent = `✗ ${err.message}`;
+    }
   }
 
   return { 
@@ -610,11 +737,9 @@ const Widget = (function() {
     startAutoRefresh: startAutoRefresh, 
     stopAutoRefresh: stopAutoRefresh, 
     isMinimized: function() { return isMinimized; },
-    // MVP 2 exports
     toggleSelectionMode: toggleSelectionMode,
     isSelectionMode: function() { return selectionMode; },
-    getSelectedElements: getSelectedElements,
-    clearSelection: clearSelection
+    expandElementInWidget: expandElementInWidget
   };
 })();
 

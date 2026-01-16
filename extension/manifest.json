@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "WebCopilot - DOM Inspector",
-  "version": "2.1.2",
-  "description": "Inspecciona el DOM con Shadow DOM, selecciona elementos y genera referencias estables",
+  "version": "3.2.2",
+  "description": "Inspecciona el DOM, selecciona elementos y ejecuta acciones",
   "permissions": [
     "activeTab"
   ],
@@ -11,6 +11,7 @@
       "matches": ["<all_urls>"],
       "js": [
         "content/dom-inspector.js",
+        "content/actions.js",
         "content/widget.js",
         "content/content.js"
       ],
