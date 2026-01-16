@@ -12,7 +12,7 @@ Este MVP establece el concepto de **"acción ejecutable"**, base para la automat
 
 ```text
 extension/
-├── manifest.json          # v3.0.0
+├── manifest.json          # v3.2.2
 └── content/
     ├── dom-inspector.js   # Escaneo y referencias
     ├── actions.js         # 🆕 Ejecución de acciones

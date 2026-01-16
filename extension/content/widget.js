@@ -22,7 +22,7 @@ const Widget = (function() {
     .wc-controls { display: flex; gap: 8px; }
     .wc-btn { background: transparent; border: none; color: #6c7086; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 16px; transition: all 0.2s; }
     .wc-btn:hover { background: #45475a; color: #cdd6f4; }
-    .wc-content { max-height: 400px; overflow-y: auto; padding: 12px; }
+    .wc-content { max-height: 400px; overflow-y: auto; overflow-x: hidden; padding: 12px; }
     .wc-widget.minimized .wc-content { display: none; }
     .wc-summary { background: #313244; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .wc-summary-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6c7086; margin-bottom: 8px; }
