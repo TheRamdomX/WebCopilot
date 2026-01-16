@@ -357,13 +357,12 @@ const Widget = (function() {
 
   // Seleccionar elemento
   function selectElement(domElement) {
-    const elementMap = DOMInspector.getElementMap();
-    const info = elementMap.get(domElement);
+    const info = DOMInspector.getInfoByDOMElement(domElement);
     
     if (!info) {
       // Elemento no registrado, escaneamos primero
       window.WebCopilot.refresh(true);
-      const newInfo = elementMap.get(domElement);
+      const newInfo = DOMInspector.getInfoByDOMElement(domElement);
       if (newInfo) {
         addToSelected(newInfo);
       }
