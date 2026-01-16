@@ -49,7 +49,7 @@ Crear un copiloto de navegación que:
 
 ---
 
-### MVP 3 — Ejecutor de acciones básicas
+### MVP 3 — Ejecutor de acciones básicas ✅
 > *Rol: ACTUAR*
 
 **Qué hace**
