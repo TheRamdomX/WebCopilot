@@ -33,13 +33,14 @@ Crear un copiloto de navegación que:
 
 ---
 
-### MVP 2 — Selección y referencia de elementos
+### MVP 2 — Selección y referencia de elementos ✅
 > *Rol: IDENTIFICAR*
 
 **Qué hace**
 - Permite seleccionar elementos del DOM (click o hover)
 - Asocia elementos a identificadores estables
 - Resalta visualmente la correspondencia widget ↔ página
+- Detecta cambios en el DOM con MutationObserver
 
 **Qué valida**
 - Correspondencia entre UI real y modelo interno

@@ -1,5 +1,6 @@
 /**
  * WebCopilot - Content Script Principal
+ * MVP 2: MutationObserver y gestión de referencias
  */
 (function() {
   'use strict';
@@ -11,6 +12,8 @@
   let orderedElements = [];
   let currentSummary = {};
   let isScanning = false;
+  let mutationObserver = null;
+  let mutationDebounce = null;
 
   function generateFingerprint(el) {
     return [el.tag, el.type, el.text || '', el.href || '', el.inputType || '', Math.round(el.position.top / 50) * 50, Math.round(el.position.left / 50) * 50].join('|');
@@ -63,6 +66,9 @@
     scanAndRender(true);
     if (!Widget.isMinimized()) Widget.startAutoRefresh();
 
+    // Iniciar MutationObserver
+    initMutationObserver();
+
     window.WebCopilot = {
       refresh: function(force) { scanAndRender(force); },
       getElements: function() { return orderedElements; },
@@ -70,8 +76,55 @@
       getSummary: function() { return currentSummary; },
       startAutoRefresh: Widget.startAutoRefresh,
       stopAutoRefresh: Widget.stopAutoRefresh,
-      version: '1.0.1'
+      // MVP 2 exports
+      toggleSelectionMode: Widget.toggleSelectionMode,
+      isSelectionMode: Widget.isSelectionMode,
+      getSelectedElements: Widget.getSelectedElements,
+      clearSelection: Widget.clearSelection,
+      getElementByReference: DOMInspector.getElementByReference,
+      isElementValid: DOMInspector.isElementValid,
+      version: '2.0.0'
     };
+  }
+
+  // Inicializar MutationObserver
+  function initMutationObserver() {
+    mutationObserver = new MutationObserver(handleMutations);
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'hidden', 'disabled', 'aria-hidden']
+    });
+  }
+
+    // Manejar mutaciones del DOM
+    function handleMutations(mutations) {
+        // Ignorar cambios en el widget
+        const relevantMutation = mutations.some(m => 
+        !m.target.closest('#webcopilot-widget-container') &&
+        !m.target.closest('#wc-highlight-overlay')
+        );
+        
+        if (!relevantMutation) return;
+        
+        // Debounce para evitar muchos scans
+        clearTimeout(mutationDebounce);
+        mutationDebounce = setTimeout(() => {
+        checkSelectedElementsValidity();
+        }, 500);
+    }
+
+    // Verificar validez de elementos seleccionados
+  function checkSelectedElementsValidity() {
+    const selected = Widget.getSelectedElements();
+    selected.forEach(el => {
+      const isValid = DOMInspector.isElementValid(el.id);
+      if (!isValid) {
+        // El elemento ya no es válido, actualizar UI
+        scanAndRender(true);
+      }
+    });
   }
 
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', init) : setTimeout(init, 100);

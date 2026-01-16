@@ -1,5 +1,6 @@
 /**
  * DOM Inspector - Inspecciona el DOM y extrae elementos interactivos visibles
+ * MVP 2: Incluye selección, resaltado y referencias estables
  */
 const DOMInspector = (function() {
   'use strict';
@@ -13,6 +14,9 @@ const DOMInspector = (function() {
   ];
 
   let idCounter = 0;
+  let elementMap = new WeakMap();
+  let referenceMap = new Map();
+  let highlightOverlay = null;
 
   function isVisible(el) {
     const style = window.getComputedStyle(el);
@@ -92,7 +96,9 @@ const DOMInspector = (function() {
 
   function inspect(el) {
     if (!isVisible(el)) return null;
-    return { id: 'wc-el-' + (++idCounter), type: getType(el), text: getText(el), position: getPosition(el), tag: el.tagName.toLowerCase(), ...getInfo(el) };
+    const info = { id: 'wc-el-' + (++idCounter), type: getType(el), text: getText(el), position: getPosition(el), tag: el.tagName.toLowerCase(), ...getInfo(el) };
+    registerElement(el, info);
+    return info;
   }
 
   function scan() {
@@ -112,7 +118,147 @@ const DOMInspector = (function() {
     return summary;
   }
 
-  return { scan, generateSummary };
+  function generateStableReference(el, domElement) {
+    const parts = [el.type];
+    
+    const ariaLabel = domElement.getAttribute('aria-label');
+    if (ariaLabel) parts.push('aria:' + ariaLabel.slice(0, 30));
+    
+    const name = domElement.getAttribute('name');
+    if (name) parts.push('name:' + name);
+    
+    const id = domElement.id;
+    if (id && !id.includes('wc-')) parts.push('id:' + id);
+    
+    const text = el.text;
+    if (text && text.length <= 30) parts.push('text:' + text);
+    
+    const placeholder = domElement.getAttribute('placeholder');
+    if (placeholder) parts.push('ph:' + placeholder.slice(0, 20));
+    
+    // Posición relativa en hermanos del mismo tipo
+    const parent = domElement.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(c => c.tagName === domElement.tagName);
+      if (siblings.length > 1) {
+        const index = siblings.indexOf(domElement);
+        parts.push('nth:' + index);
+      }
+    }
+    
+    return 'ref-' + parts.join('|').replace(/[^a-zA-Z0-9|:\-]/g, '_').slice(0, 100);
+  }
+
+  // Crear overlay de resaltado
+  function createHighlightOverlay() {
+    if (highlightOverlay) return highlightOverlay;
+    
+    highlightOverlay = document.createElement('div');
+    highlightOverlay.id = 'wc-highlight-overlay';
+    highlightOverlay.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      border: 2px solid #cba6f7;
+      background: rgba(203, 166, 247, 0.15);
+      border-radius: 4px;
+      z-index: 2147483646;
+      transition: all 0.15s ease;
+      display: none;
+    `;
+    document.body.appendChild(highlightOverlay);
+    return highlightOverlay;
+  }
+
+  // Resaltar elemento en la página
+  function highlightElement(domElement) {
+    const overlay = createHighlightOverlay();
+    
+    if (!domElement) {
+      overlay.style.display = 'none';
+      return;
+    }
+    
+    const rect = domElement.getBoundingClientRect();
+    overlay.style.display = 'block';
+    overlay.style.top = rect.top - 2 + 'px';
+    overlay.style.left = rect.left - 2 + 'px';
+    overlay.style.width = rect.width + 4 + 'px';
+    overlay.style.height = rect.height + 4 + 'px';
+  }
+
+  // Resaltar con estilo de selección confirmada
+  function highlightSelected(domElement) {
+    const overlay = createHighlightOverlay();
+    
+    if (!domElement) {
+      overlay.style.display = 'none';
+      return;
+    }
+    
+    const rect = domElement.getBoundingClientRect();
+    overlay.style.display = 'block';
+    overlay.style.top = rect.top - 2 + 'px';
+    overlay.style.left = rect.left - 2 + 'px';
+    overlay.style.width = rect.width + 4 + 'px';
+    overlay.style.height = rect.height + 4 + 'px';
+    overlay.style.borderColor = '#a6e3a1';
+    overlay.style.background = 'rgba(166, 227, 161, 0.2)';
+  }
+
+  // Ocultar resaltado
+  function clearHighlight() {
+    if (highlightOverlay) {
+      highlightOverlay.style.display = 'none';
+      highlightOverlay.style.borderColor = '#cba6f7';
+      highlightOverlay.style.background = 'rgba(203, 166, 247, 0.15)';
+    }
+  }
+
+  // Obtener elemento DOM por ID interno
+  function getDOMElementById(elementId) {
+    for (const [dom, info] of elementMap) {
+      if (info.id === elementId) return dom;
+    }
+    return null;
+  }
+
+  // Registrar elemento en mapas
+  function registerElement(domElement, info) {
+    const reference = generateStableReference(info, domElement);
+    elementMap.set(domElement, { ...info, reference });
+    referenceMap.set(info.id, { domElement, info: { ...info, reference } });
+    return reference;
+  }
+
+  // Obtener info de elemento por referencia
+  function getElementByReference(ref) {
+    for (const [id, data] of referenceMap) {
+      if (data.info.reference === ref) return data;
+    }
+    return null;
+  }
+
+  // Verificar si elemento sigue válido
+  function isElementValid(elementId) {
+    const data = referenceMap.get(elementId);
+    if (!data) return false;
+    return document.body.contains(data.domElement) && isVisible(data.domElement);
+  }
+
+  return { 
+    scan, 
+    generateSummary, 
+    highlightElement, 
+    highlightSelected,
+    clearHighlight, 
+    getDOMElementById, 
+    registerElement,
+    getElementByReference,
+    isElementValid,
+    generateStableReference,
+    getElementMap: () => elementMap,
+    getReferenceMap: () => referenceMap
+  };
 })();
 
 window.DOMInspector = DOMInspector;
