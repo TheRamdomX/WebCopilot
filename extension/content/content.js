@@ -303,11 +303,10 @@
       startAutoRefresh: Widget.startAutoRefresh,
       stopAutoRefresh: Widget.stopAutoRefresh,
       
-      // Selection (MVP 2)
+      // Selection mode
       toggleSelectionMode: Widget.toggleSelectionMode,
       isSelectionMode: Widget.isSelectionMode,
-      getSelectedElements: Widget.getSelectedElements,
-      clearSelection: Widget.clearSelection,
+      expandElement: Widget.expandElementInWidget,
       
       // References
       getElementByReference: DOMInspector.getElementByReference,

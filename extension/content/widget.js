@@ -7,7 +7,7 @@ const Widget = (function() {
 
   let container, shadowRoot, isMinimized = false, isDragging = false, dragOffset = { x: 0, y: 0 };
   let autoRefreshInterval = null, currentElementIds = new Set();
-  let selectionMode = false, selectedElements = new Map();
+  let selectionMode = false;
   const AUTO_REFRESH_DELAY = 1000;
 
   const STYLES = `
@@ -64,25 +64,7 @@ const Widget = (function() {
     .wc-selection-btn { background: #45475a; border: none; color: #cdd6f4; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; transition: all 0.2s; margin-right: 8px; }
     .wc-selection-btn:hover { background: #585b70; }
     .wc-selection-btn.active { background: #cba6f7; color: #1e1e2e; }
-    .wc-element.selected { border-left-color: #a6e3a1 !important; background: #2d4a3e; }
-    .wc-element.selected:hover { background: #3a5c4d; }
     .wc-element-reference { font-size: 9px; color: #89b4fa; font-family: monospace; margin-top: 4px; word-break: break-all; background: #1e1e2e; padding: 4px 6px; border-radius: 4px; }
-    .wc-selected-section { background: #2d4a3e; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #a6e3a1; }
-    .wc-selected-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #a6e3a1; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-    .wc-selected-count { background: #a6e3a1; color: #1e1e2e; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .wc-selected-list { display: flex; flex-direction: column; gap: 6px; }
-    .wc-selected-item { background: #313244; border-radius: 6px; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
-    .wc-selected-info { flex: 1; }
-    .wc-selected-type { font-size: 10px; text-transform: uppercase; color: #6c7086; }
-    .wc-selected-text { font-size: 12px; color: #cdd6f4; margin-top: 2px; }
-    .wc-selected-ref { font-size: 9px; color: #89b4fa; font-family: monospace; margin-top: 4px; }
-    .wc-selected-status { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
-    .wc-selected-status.valid { background: #a6e3a1; color: #1e1e2e; }
-    .wc-selected-status.invalid { background: #f38ba8; color: #1e1e2e; }
-    .wc-remove-btn { background: #f38ba8; border: none; color: #1e1e2e; width: 20px; height: 20px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px; }
-    .wc-remove-btn:hover { background: #eba0ac; }
-    .wc-clear-btn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
-    .wc-clear-btn:hover { background: #f38ba8; color: #1e1e2e; }
     .wc-mode-indicator { background: #cba6f7; color: #1e1e2e; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; animation: pulse 1s infinite; }
     
     /* MVP 3: Acciones inline en elemento */
@@ -122,7 +104,6 @@ const Widget = (function() {
 
   function renderElement(el) {
     const text = el.text || '(sin texto)';
-    const isSelected = selectedElements.has(el.id);
     let meta = '<span class="wc-element-zone">' + el.position.zone + '</span>';
     if (el.href) meta += '<span>→ ' + escapeHtml(el.href) + '</span>';
     if (el.inputType && el.inputType !== 'text') meta += '<span>tipo: ' + el.inputType + '</span>';
@@ -137,36 +118,7 @@ const Widget = (function() {
       '<div class="wc-action-result"></div>' +
       '</div>';
     
-    return '<div class="wc-element type-' + el.type + (isSelected ? ' selected' : '') + '" data-element-id="' + el.id + '"><div class="wc-element-header"><span class="wc-element-type">' + el.type + '</span><span class="wc-element-id">' + el.id + '</span></div><div class="wc-element-text ' + (el.text ? '' : 'empty') + '">' + escapeHtml(text) + '</div><div class="wc-element-meta">' + meta + '</div>' + refHtml + actionsHtml + '</div>';
-  }
-
-  // Renderizar sección de elementos seleccionados
-  function renderSelectedSection() {
-    if (selectedElements.size === 0) return '';
-    
-    let items = '';
-    selectedElements.forEach((data, id) => {
-      const isValid = DOMInspector.isElementValid(id);
-      const statusClass = isValid ? 'valid' : 'invalid';
-      const statusText = isValid ? '✓' : '✗';
-      items += '<div class="wc-selected-item" data-selected-id="' + id + '">' +
-        '<div class="wc-selected-info">' +
-        '<div class="wc-selected-type">' + data.type + '</div>' +
-        '<div class="wc-selected-text">' + escapeHtml(data.text || '(sin texto)') + '</div>' +
-        '<div class="wc-selected-ref">' + escapeHtml(data.reference || '') + '</div>' +
-        '</div>' +
-        '<span class="wc-selected-status ' + statusClass + '">' + statusText + '</span>' +
-        '<button class="wc-remove-btn" data-remove-id="' + id + '">×</button>' +
-        '</div>';
-    });
-    
-    return '<div class="wc-selected-section">' +
-      '<div class="wc-selected-title">' +
-      '<span>Elementos seleccionados</span>' +
-      '<span class="wc-selected-count">' + selectedElements.size + '</span>' +
-      '</div>' +
-      '<div class="wc-selected-list">' + items + '</div>' +
-      '</div>';
+    return '<div class="wc-element type-' + el.type + '" data-element-id="' + el.id + '"><div class="wc-element-header"><span class="wc-element-type">' + el.type + '</span><span class="wc-element-id">' + el.id + '</span></div><div class="wc-element-text ' + (el.text ? '' : 'empty') + '">' + escapeHtml(text) + '</div><div class="wc-element-meta">' + meta + '</div>' + refHtml + actionsHtml + '</div>';
   }
 
   function render(elements, summary) {
@@ -176,8 +128,7 @@ const Widget = (function() {
   function renderFull(elements, summary) {
     const html = elements.length ? elements.map(renderElement).join('') : '<div class="wc-empty"><div class="wc-empty-icon">🔍</div><div>No se encontraron elementos</div></div>';
     const modeIndicator = selectionMode ? '<span class="wc-mode-indicator">SELECCIÓN ACTIVA</span>' : '';
-    const selectedSection = renderSelectedSection();
-    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + selectedSection + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
+    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
     const t = document.createElement('template'); t.innerHTML = widget;
     shadowRoot.appendChild(t.content.cloneNode(true));
     currentElementIds = new Set(elements.map(function(e) { return e.id; }));
@@ -190,9 +141,6 @@ const Widget = (function() {
     const sumEl = widget.querySelector('.wc-summary');
     const tmp = document.createElement('div'); tmp.innerHTML = renderSummary(summary);
     sumEl.innerHTML = tmp.querySelector('.wc-summary').innerHTML;
-
-    // Actualizar sección de seleccionados
-    updateSelectedSection();
 
     const list = widget.querySelector('.wc-element-list');
     const newIds = new Set(elements.map(function(e) { return e.id; }));
@@ -218,8 +166,6 @@ const Widget = (function() {
           existing.classList.add('wc-element-updated');
           setTimeout(function() { existing.classList.remove('wc-element-updated'); }, 500);
         }
-        // Actualizar estado de selección
-        existing.classList.toggle('selected', selectedElements.has(el.id));
       } else {
         const t = document.createElement('template'); t.innerHTML = renderElement(el);
         const newEl = t.content.firstElementChild;
@@ -466,7 +412,7 @@ const Widget = (function() {
     return false;
   }
 
-  // Seleccionar elemento
+  // Seleccionar elemento - expande acciones en el widget
   function selectElement(domElement) {
     const info = DOMInspector.getInfoByDOMElement(domElement);
     
@@ -475,54 +421,43 @@ const Widget = (function() {
       window.WebCopilot.refresh(true);
       const newInfo = DOMInspector.getInfoByDOMElement(domElement);
       if (newInfo) {
-        addToSelected(newInfo);
+        expandElementInWidget(newInfo.id);
+      } else {
+        // No se encontró, desactivar modo de todos modos
+        disableSelectionMode();
       }
       return;
     }
     
-    addToSelected(info);
+    expandElementInWidget(info.id);
   }
 
-  // Agregar a seleccionados
-  function addToSelected(info) {
-    if (selectedElements.has(info.id)) {
-      // Ya está seleccionado, lo deseleccionamos
-      selectedElements.delete(info.id);
-    } else {
-      selectedElements.set(info.id, {
-        id: info.id,
-        type: info.type,
-        text: info.text,
-        reference: info.reference,
-        timestamp: Date.now()
-      });
-    }
-    updateSelectedSection();
-    updateElementSelection(info.id);
+  // Desactivar modo selección
+  function disableSelectionMode() {
+    if (!selectionMode) return;
+    selectionMode = false;
+    document.removeEventListener('click', handleSelectionClick, true);
+    DOMInspector.clearHighlight();
+    updateModeIndicator();
+    
+    const btn = shadowRoot.querySelector('#wc-selection');
+    if (btn) btn.classList.remove('active');
   }
 
-  // Actualizar sección de seleccionados
-  function updateSelectedSection() {
+  // Expandir elemento en el widget y hacer scroll
+  function expandElementInWidget(elementId) {
+    const elementDiv = shadowRoot.querySelector('[data-element-id="' + elementId + '"]');
+    if (!elementDiv) return;
+    
+    // Hacer scroll en el widget para mostrar el elemento
     const content = shadowRoot.querySelector('.wc-content');
-    let section = content.querySelector('.wc-selected-section');
+    elementDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
-    if (selectedElements.size === 0) {
-      if (section) section.remove();
-      return;
-    }
+    // Desactivar modo selección después del scroll
+    disableSelectionMode();
     
-    const newHtml = renderSelectedSection();
-    const tmp = document.createElement('div');
-    tmp.innerHTML = newHtml;
-    const newSection = tmp.firstElementChild;
-    
-    if (section) {
-      section.innerHTML = newSection.innerHTML;
-    } else {
-      content.insertBefore(newSection, content.firstChild);
-    }
-    
-    attachSelectedEvents();
+    // Expandir las acciones del elemento
+    toggleElementActions(elementId, elementDiv);
   }
 
   // Actualizar indicador de modo
@@ -537,14 +472,6 @@ const Widget = (function() {
       controls.insertBefore(span, controls.firstChild);
     } else if (!selectionMode && indicator) {
       indicator.remove();
-    }
-  }
-
-  // Actualizar clase de selección en elemento
-  function updateElementSelection(elementId) {
-    const el = shadowRoot.querySelector('[data-element-id="' + elementId + '"]');
-    if (el) {
-      el.classList.toggle('selected', selectedElements.has(elementId));
     }
   }
 
@@ -803,53 +730,6 @@ const Widget = (function() {
     }
   }
 
-  // Eventos de sección seleccionados
-  function attachSelectedEvents() {
-    shadowRoot.querySelectorAll('.wc-remove-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        const id = btn.dataset.removeId;
-        selectedElements.delete(id);
-        updateSelectedSection();
-        updateElementSelection(id);
-      });
-    });
-    
-    shadowRoot.querySelectorAll('.wc-selected-item').forEach(item => {
-      item.addEventListener('mouseenter', function() {
-        const id = item.dataset.selectedId;
-        const domEl = DOMInspector.getDOMElementById(id);
-        if (domEl) DOMInspector.highlightElement(domEl);
-      });
-      
-      item.addEventListener('mouseleave', function() {
-        DOMInspector.clearHighlight();
-      });
-      
-      item.addEventListener('click', function(e) {
-        if (e.target.closest('.wc-remove-btn')) return;
-        const id = item.dataset.selectedId;
-        const domEl = DOMInspector.getDOMElementById(id);
-        if (domEl) {
-          DOMInspector.highlightSelected(domEl);
-          setTimeout(() => DOMInspector.clearHighlight(), 1000);
-        }
-      });
-    });
-  }
-
-  // Obtener elementos seleccionados
-  function getSelectedElements() {
-    return Array.from(selectedElements.values());
-  }
-
-  // Limpiar selección
-  function clearSelection() {
-    selectedElements.clear();
-    updateSelectedSection();
-    shadowRoot.querySelectorAll('.wc-element.selected').forEach(el => el.classList.remove('selected'));
-  }
-
   return { 
     init: init, 
     render: render, 
@@ -857,11 +737,9 @@ const Widget = (function() {
     startAutoRefresh: startAutoRefresh, 
     stopAutoRefresh: stopAutoRefresh, 
     isMinimized: function() { return isMinimized; },
-    // MVP 2 exports
     toggleSelectionMode: toggleSelectionMode,
     isSelectionMode: function() { return selectionMode; },
-    getSelectedElements: getSelectedElements,
-    clearSelection: clearSelection
+    expandElementInWidget: expandElementInWidget
   };
 })();
 
