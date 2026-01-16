@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "WebCopilot - DOM Inspector",
-  "version": "1.0.1",
-  "description": "Inspecciona y abstrae el DOM de páginas web mostrando elementos interactivos visibles",
+  "version": "2.1.1",
+  "description": "Inspecciona el DOM con Shadow DOM, selecciona elementos y genera referencias estables",
   "permissions": [
     "activeTab"
   ],
