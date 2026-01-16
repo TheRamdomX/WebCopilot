@@ -102,7 +102,7 @@
       
       // Log en desarrollo
       if (result.hasChanges) {
-        console.log(`🔄 WebCopilot [${reason}]: +${result.stats.added} -${result.stats.removed} ~${result.stats.updated}`);
+        console.log(`WebCopilot [${reason}]: +${result.stats.added} -${result.stats.removed} ~${result.stats.updated}`);
       }
     }
     
@@ -123,7 +123,7 @@
             stabilityObserver.disconnect();
             stabilityObserver = null;
           }
-          console.log(`✅ DOM estable tras ${mutationCount} mutaciones`);
+          console.log(` DOM estable tras ${mutationCount} mutaciones`);
           resolve();
         }, STABILITY_DELAY);
       };
@@ -167,7 +167,7 @@
       
       clearTimeout(routeChangeDebounce);
       routeChangeDebounce = setTimeout(() => {
-        console.log(`🔀 Cambio de ruta [${source}]: ${location.href}`);
+        console.log(`Cambio de ruta [${source}]: ${location.href}`);
         invalidateAndRescan();
       }, ROUTE_DEBOUNCE);
     };
@@ -263,9 +263,9 @@
   async function init() {
     if (isInitialized) return;
     isInitialized = true;
-    
-    console.log('🚀 WebCopilot v2.1 inicializando...');
-    
+
+    console.log('WebCopilot inicializando...');
+
     // 1. Inicializar widget (sin datos aún)
     Widget.init();
     
@@ -331,7 +331,7 @@
       version: '3.0.0'
     };
     
-    console.log('✅ WebCopilot listo');
+    console.log('WebCopilot listo');
   }
 
   // ============ ARRANQUE ============

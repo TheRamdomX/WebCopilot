@@ -34,6 +34,25 @@ const Actions = (function() {
     };
   }
 
+  function isElementInDOM(el) {
+    // Verificar si el elemento está conectado al documento
+    // Funciona tanto para elementos en el DOM principal como en Shadow DOM
+    if (!el) return false;
+    
+    // isConnected es la forma moderna de verificar
+    if (typeof el.isConnected === 'boolean') {
+      return el.isConnected;
+    }
+    
+    // Fallback: verificar si está en el documento o en algún shadow root
+    let node = el;
+    while (node) {
+      if (node === document) return true;
+      node = node.parentNode || node.host;
+    }
+    return false;
+  }
+
   function scrollIntoViewIfNeeded(el) {
     const rect = el.getBoundingClientRect();
     const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
@@ -95,7 +114,7 @@ const Actions = (function() {
       return createResult('click', false, { reason: `No se encontró el elemento: ${ref}` });
     }
 
-    if (!document.body.contains(el)) {
+    if (!isElementInDOM(el)) {
       return createResult('click', false, { reason: 'Elemento no está en el DOM' });
     }
 

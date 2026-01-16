@@ -618,9 +618,8 @@ const Widget = (function() {
     content.appendChild(popup);
     currentActionPopup = { popup, elementId, info, domEl };
     
-    // Scroll al elemento real
+    // Highlight del elemento (sin scroll)
     if (domEl) {
-      domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       DOMInspector.highlightSelected(domEl);
     }
     
@@ -818,7 +817,6 @@ const Widget = (function() {
         const id = item.dataset.selectedId;
         const domEl = DOMInspector.getDOMElementById(id);
         if (domEl) {
-          domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           DOMInspector.highlightSelected(domEl);
           setTimeout(() => DOMInspector.clearHighlight(), 1000);
         }
