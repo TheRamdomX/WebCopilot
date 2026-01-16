@@ -314,10 +314,21 @@
       isElementValid: DOMInspector.isElementValid,
       getDOMElement: DOMInspector.getDOMElementById,
       
+      // Actions
+      click: Actions.click,
+      type: Actions.type,
+      focus: Actions.focus,
+      scroll: Actions.scroll,
+      hover: Actions.hover,
+      select: Actions.select,
+      check: Actions.check,
+      pressKey: Actions.pressKey,
+      sequence: Actions.sequence,
+      
       // Debug
       logStats: DOMInspector.logStats,
       
-      version: '2.1.0'
+      version: '3.0.0'
     };
     
     console.log('✅ WebCopilot listo');

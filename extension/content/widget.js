@@ -1,6 +1,6 @@
 /**
  * Widget - Widget flotante con Shadow DOM
- * MVP 2: Modo selección y referencias de elementos
+ * MVP 3: Ejecución de acciones sobre elementos
  */
 const Widget = (function() {
   'use strict';
@@ -8,6 +8,7 @@ const Widget = (function() {
   let container, shadowRoot, isMinimized = false, isDragging = false, dragOffset = { x: 0, y: 0 };
   let autoRefreshInterval = null, currentElementIds = new Set();
   let selectionMode = false, selectedElements = new Map();
+  let currentActionPopup = null; // Popup de acciones activo
   const AUTO_REFRESH_DELAY = 1000;
 
   const STYLES = `
@@ -84,6 +85,37 @@ const Widget = (function() {
     .wc-clear-btn { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; }
     .wc-clear-btn:hover { background: #f38ba8; color: #1e1e2e; }
     .wc-mode-indicator { background: #cba6f7; color: #1e1e2e; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; animation: pulse 1s infinite; }
+    
+    /* MVP 3: Popup de acciones */
+    .wc-action-popup { position: absolute; background: #1e1e2e; border: 1px solid #cba6f7; border-radius: 10px; padding: 12px; min-width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 10; animation: popupIn 0.2s ease; }
+    @keyframes popupIn { from { opacity: 0; transform: scale(0.95) translateY(-5px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .wc-action-popup-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .wc-action-popup-info { flex: 1; }
+    .wc-action-popup-type { font-size: 10px; text-transform: uppercase; color: #cba6f7; font-weight: 600; }
+    .wc-action-popup-text { font-size: 13px; color: #cdd6f4; margin-top: 4px; word-break: break-word; max-width: 200px; }
+    .wc-action-popup-close { background: transparent; border: none; color: #6c7086; font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .wc-action-popup-close:hover { color: #f38ba8; }
+    .wc-action-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .wc-action-btn { background: #45475a; border: none; color: #cdd6f4; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .wc-action-btn:hover { background: #585b70; }
+    .wc-action-btn:active { transform: scale(0.95); }
+    .wc-action-btn.primary { background: #cba6f7; color: #1e1e2e; }
+    .wc-action-btn.primary:hover { background: #b490e0; }
+    .wc-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wc-action-input-group { display: none; margin-top: 10px; }
+    .wc-action-input-group.visible { display: block; }
+    .wc-action-input { width: 100%; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 10px 12px; color: #cdd6f4; font-size: 13px; outline: none; }
+    .wc-action-input:focus { border-color: #cba6f7; }
+    .wc-action-input::placeholder { color: #6c7086; }
+    .wc-action-input-submit { margin-top: 8px; width: 100%; background: #a6e3a1; color: #1e1e2e; }
+    .wc-action-input-submit:hover { background: #94d990; }
+    .wc-action-result { margin-top: 10px; padding: 8px 10px; border-radius: 6px; font-size: 11px; display: none; }
+    .wc-action-result.visible { display: block; }
+    .wc-action-result.success { background: rgba(166, 227, 161, 0.2); border: 1px solid #a6e3a1; color: #a6e3a1; }
+    .wc-action-result.error { background: rgba(243, 139, 168, 0.2); border: 1px solid #f38ba8; color: #f38ba8; }
+    .wc-action-options { display: none; margin-top: 8px; }
+    .wc-action-options.visible { display: block; }
+    .wc-action-options select { width: 100%; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; color: #cdd6f4; font-size: 12px; }
   `;
 
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -432,35 +464,19 @@ const Widget = (function() {
 
   // Seleccionar elemento
   function selectElement(domElement) {
-    console.log('🎯 selectElement:', domElement.tagName, domElement);
-    
-    let info = DOMInspector.getInfoByDOMElement(domElement);
-    console.log('📋 Info directa:', info);
+    const info = DOMInspector.getInfoByDOMElement(domElement);
     
     if (!info) {
-      // Intentar con el elemento encontrado por findInteractiveParent
-      // Puede que el target del click sea un hijo, no el elemento registrado
-      console.log('⚠️ Elemento no registrado directamente, buscando en registry...');
-      
-      // Forzar rescan
-      DOMInspector.scan();
-      info = DOMInspector.getInfoByDOMElement(domElement);
-      console.log('📋 Info después de rescan:', info);
+      // Elemento no registrado, escaneamos primero
+      window.WebCopilot.refresh(true);
+      const newInfo = DOMInspector.getInfoByDOMElement(domElement);
+      if (newInfo) {
+        addToSelected(newInfo);
+      }
+      return;
     }
     
-    if (info) {
-      console.log('✅ Info encontrada:', info.id, info.type, info.text);
-      addToSelected(info);
-    } else {
-      console.log('❌ No se pudo obtener info del elemento');
-      // Último intento: crear una entrada manual para este elemento
-      console.log('🔄 Intentando inspección manual...');
-      const manualInfo = DOMInspector.inspectSingle?.(domElement);
-      if (manualInfo) {
-        console.log('✅ Inspección manual exitosa:', manualInfo);
-        addToSelected(manualInfo);
-      }
-    }
+    addToSelected(info);
   }
 
   // Agregar a seleccionados
@@ -544,15 +560,234 @@ const Widget = (function() {
       DOMInspector.clearHighlight();
     });
     
-    el.addEventListener('click', function() {
+    el.addEventListener('click', function(e) {
       const id = el.dataset.elementId;
-      const domEl = DOMInspector.getDOMElementById(id);
-      if (domEl) {
-        domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        DOMInspector.highlightSelected(domEl);
-        setTimeout(() => DOMInspector.clearHighlight(), 1000);
+      showActionPopup(id, el);
+    });
+  }
+
+  // ============ MVP 3: POPUP DE ACCIONES ============
+
+  function showActionPopup(elementId, targetEl) {
+    // Cerrar popup existente
+    closeActionPopup();
+    
+    const info = DOMInspector.getInfoByDOMElement(DOMInspector.getDOMElementById(elementId));
+    if (!info) return;
+    
+    const domEl = DOMInspector.getDOMElementById(elementId);
+    
+    // Determinar acciones disponibles según tipo
+    const actions = getAvailableActions(info, domEl);
+    
+    // Crear popup
+    const popup = document.createElement('div');
+    popup.className = 'wc-action-popup';
+    popup.innerHTML = `
+      <div class="wc-action-popup-header">
+        <div class="wc-action-popup-info">
+          <div class="wc-action-popup-type">${escapeHtml(info.type)}</div>
+          <div class="wc-action-popup-text">${escapeHtml(info.text || '(sin texto)')}</div>
+        </div>
+        <button class="wc-action-popup-close">×</button>
+      </div>
+      <div class="wc-action-buttons">
+        ${actions.map(a => `<button class="wc-action-btn ${a.primary ? 'primary' : ''}" data-action="${a.action}" ${a.disabled ? 'disabled' : ''}>${a.icon} ${a.label}</button>`).join('')}
+      </div>
+      <div class="wc-action-input-group" id="wc-input-group">
+        <input type="text" class="wc-action-input" placeholder="Escribe el texto..." id="wc-action-text-input">
+        <button class="wc-action-btn wc-action-input-submit" id="wc-submit-type">⌨️ Escribir</button>
+      </div>
+      <div class="wc-action-options" id="wc-select-group">
+        <select class="wc-action-select" id="wc-action-select"></select>
+        <button class="wc-action-btn wc-action-input-submit" id="wc-submit-select" style="margin-top: 8px;">✓ Seleccionar</button>
+      </div>
+      <div class="wc-action-result" id="wc-action-result"></div>
+    `;
+    
+    // Posicionar popup
+    const rect = targetEl.getBoundingClientRect();
+    const widgetRect = shadowRoot.querySelector('.wc-widget').getBoundingClientRect();
+    popup.style.top = (rect.top - widgetRect.top + rect.height + 5) + 'px';
+    popup.style.left = '10px';
+    popup.style.right = '10px';
+    
+    // Agregar al widget
+    const content = shadowRoot.querySelector('.wc-content');
+    content.style.position = 'relative';
+    content.appendChild(popup);
+    currentActionPopup = { popup, elementId, info, domEl };
+    
+    // Scroll al elemento real
+    if (domEl) {
+      domEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      DOMInspector.highlightSelected(domEl);
+    }
+    
+    // Poblar select si es necesario
+    if (info.tag === 'select' && domEl) {
+      const selectEl = popup.querySelector('#wc-action-select');
+      Array.from(domEl.options).forEach((opt, i) => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.textContent || `Opción ${i + 1}`;
+        if (domEl.selectedIndex === i) option.selected = true;
+        selectEl.appendChild(option);
+      });
+    }
+    
+    // Eventos del popup
+    attachActionPopupEvents(popup, elementId);
+  }
+
+  function getAvailableActions(info, domEl) {
+    const actions = [];
+    const type = info.type;
+    const tag = info.tag;
+    
+    // Click siempre disponible
+    actions.push({ action: 'click', icon: '👆', label: 'Click', primary: type === 'action' || type === 'navigation' });
+    
+    // Type para inputs
+    if (type === 'input' || tag === 'input' || tag === 'textarea' || domEl?.isContentEditable) {
+      actions.push({ action: 'type', icon: '⌨️', label: 'Escribir', primary: true });
+    }
+    
+    // Select para dropdowns
+    if (tag === 'select') {
+      actions.push({ action: 'select', icon: '📋', label: 'Seleccionar', primary: true });
+    }
+    
+    // Check para checkboxes/radios
+    if (domEl?.type === 'checkbox' || domEl?.type === 'radio') {
+      const isChecked = domEl.checked;
+      actions.push({ action: 'check', icon: isChecked ? '☑️' : '☐', label: isChecked ? 'Desmarcar' : 'Marcar', primary: true });
+    }
+    
+    // Focus
+    actions.push({ action: 'focus', icon: '🎯', label: 'Focus' });
+    
+    // Scroll
+    actions.push({ action: 'scroll', icon: '📜', label: 'Scroll' });
+    
+    // Hover
+    actions.push({ action: 'hover', icon: '🖱️', label: 'Hover' });
+    
+    return actions;
+  }
+
+  function attachActionPopupEvents(popup, elementId) {
+    // Cerrar
+    popup.querySelector('.wc-action-popup-close').addEventListener('click', closeActionPopup);
+    
+    // Botones de acción
+    popup.querySelectorAll('.wc-action-btn[data-action]').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const action = btn.dataset.action;
+        
+        if (action === 'type') {
+          // Mostrar input de texto
+          popup.querySelector('#wc-input-group').classList.add('visible');
+          popup.querySelector('#wc-action-text-input').focus();
+          return;
+        }
+        
+        if (action === 'select') {
+          // Mostrar dropdown
+          popup.querySelector('#wc-select-group').classList.add('visible');
+          return;
+        }
+        
+        // Ejecutar acción directamente
+        await executeAction(action, elementId);
+      });
+    });
+    
+    // Submit de texto
+    popup.querySelector('#wc-submit-type')?.addEventListener('click', async function() {
+      const text = popup.querySelector('#wc-action-text-input').value;
+      if (text) {
+        await executeAction('type', elementId, text);
       }
     });
+    
+    // Enter en input de texto
+    popup.querySelector('#wc-action-text-input')?.addEventListener('keydown', async function(e) {
+      if (e.key === 'Enter') {
+        const text = this.value;
+        if (text) {
+          await executeAction('type', elementId, text);
+        }
+      }
+    });
+    
+    // Submit de select
+    popup.querySelector('#wc-submit-select')?.addEventListener('click', async function() {
+      const value = popup.querySelector('#wc-action-select').value;
+      await executeAction('select', elementId, value);
+    });
+  }
+
+  async function executeAction(action, elementId, value) {
+    if (!currentActionPopup) return;
+    
+    const resultEl = currentActionPopup.popup.querySelector('#wc-action-result');
+    resultEl.className = 'wc-action-result visible';
+    resultEl.textContent = 'Ejecutando...';
+    
+    let result;
+    
+    try {
+      switch (action) {
+        case 'click':
+          result = await Actions.click(elementId);
+          break;
+        case 'type':
+          result = await Actions.type(elementId, value, { instant: false, delayMs: 20 });
+          break;
+        case 'focus':
+          result = await Actions.focus(elementId);
+          break;
+        case 'scroll':
+          result = await Actions.scroll(elementId);
+          break;
+        case 'hover':
+          result = await Actions.hover(elementId);
+          break;
+        case 'select':
+          result = await Actions.select(elementId, value);
+          break;
+        case 'check':
+          result = await Actions.check(elementId);
+          break;
+        default:
+          result = { success: false, reason: 'Acción desconocida' };
+      }
+      
+      if (result.success) {
+        resultEl.className = 'wc-action-result visible success';
+        resultEl.textContent = `✓ ${action} ejecutado correctamente`;
+        
+        // Cerrar popup después de acción exitosa (excepto hover)
+        if (action !== 'hover') {
+          setTimeout(closeActionPopup, 1500);
+        }
+      } else {
+        resultEl.className = 'wc-action-result visible error';
+        resultEl.textContent = `✗ Error: ${result.reason}`;
+      }
+    } catch (err) {
+      resultEl.className = 'wc-action-result visible error';
+      resultEl.textContent = `✗ Error: ${err.message}`;
+    }
+  }
+
+  function closeActionPopup() {
+    if (currentActionPopup) {
+      currentActionPopup.popup.remove();
+      currentActionPopup = null;
+      DOMInspector.clearHighlight();
+    }
   }
 
   // Eventos de sección seleccionados
