@@ -286,6 +286,36 @@ const Widget = (function() {
 
   function destroy() { stopAutoRefresh(); disableSelectionMode(); container.remove(); container = shadowRoot = null; }
 
+  // ============ HELPERS SHADOW DOM ============
+
+  // Obtener el target real del evento (atraviesa Shadow DOM)
+  function getRealTarget(e) {
+    // composedPath() devuelve el camino completo incluyendo Shadow DOM
+    const path = e.composedPath?.();
+    if (path && path.length > 0) {
+      // El primer elemento es el target más profundo
+      return path[0];
+    }
+    return e.target;
+  }
+
+  // Verificar si un elemento está dentro del widget
+  function isInsideWidget(el) {
+    if (!el) return false;
+    // Verificar por ID directamente
+    if (el.id === 'webcopilot-widget-container') return true;
+    // Verificar ancestros (incluyendo salir de Shadow DOM)
+    let current = el;
+    while (current) {
+      if (current.id === 'webcopilot-widget-container') return true;
+      if (current.id === 'wc-highlight-overlay') return true;
+      current = current.parentElement || current.parentNode?.host;
+    }
+    return false;
+  }
+
+  // ============ MODO SELECCIÓN ============
+
   // Toggle modo selección
   function toggleSelectionMode() {
     selectionMode = !selectionMode;
@@ -317,9 +347,13 @@ const Widget = (function() {
   // Mouse over en modo selección
   function handleMouseOver(e) {
     if (!selectionMode) return;
-    if (e.target.closest('#webcopilot-widget-container')) return;
     
-    const interactiveEl = findInteractiveParent(e.target);
+    // Obtener el target real (considerando composedPath para Shadow DOM)
+    const realTarget = getRealTarget(e);
+    if (!realTarget) return;
+    if (isInsideWidget(realTarget)) return;
+    
+    const interactiveEl = findInteractiveParent(realTarget);
     if (interactiveEl) {
       DOMInspector.highlightElement(interactiveEl);
     }
@@ -328,7 +362,8 @@ const Widget = (function() {
   // Mouse out en modo selección
   function handleMouseOut(e) {
     if (!selectionMode) return;
-    if (!e.relatedTarget || e.relatedTarget.closest('#webcopilot-widget-container')) {
+    const relatedTarget = e.relatedTarget;
+    if (!relatedTarget || isInsideWidget(relatedTarget)) {
       DOMInspector.clearHighlight();
     }
   }
@@ -336,12 +371,16 @@ const Widget = (function() {
   // Click en modo selección
   function handleSelectionClick(e) {
     if (!selectionMode) return;
-    if (e.target.closest('#webcopilot-widget-container')) return;
+    
+    // Obtener el target real (considerando composedPath para Shadow DOM)
+    const realTarget = getRealTarget(e);
+    if (!realTarget) return;
+    if (isInsideWidget(realTarget)) return;
     
     e.preventDefault();
     e.stopPropagation();
     
-    const interactiveEl = findInteractiveParent(e.target);
+    const interactiveEl = findInteractiveParent(realTarget);
     if (interactiveEl) {
       selectElement(interactiveEl);
       DOMInspector.highlightSelected(interactiveEl);
@@ -349,27 +388,79 @@ const Widget = (function() {
     }
   }
 
-  // Encontrar elemento interactivo padre
+  // Encontrar elemento interactivo (el mismo o ancestro)
   function findInteractiveParent(el) {
-    const selectors = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]:not([tabindex="-1"])';
-    return el.closest(selectors);
+    // Verificar el propio elemento y ancestros
+    let current = el;
+    while (current && current !== document.body) {
+      if (isSelectableElement(current)) {
+        return current;
+      }
+      // Navegar hacia arriba, incluso fuera del Shadow DOM
+      current = current.parentElement || current.parentNode?.host;
+    }
+    return null;
+  }
+
+  // Verificar si un elemento es seleccionable (misma lógica que dom-inspector)
+  function isSelectableElement(el) {
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toLowerCase();
+    
+    // Elementos nativos interactivos
+    if (tag === 'a' && el.hasAttribute('href')) return true;
+    if (tag === 'button') return true;
+    if (tag === 'input' && el.type !== 'hidden') return true;
+    if (tag === 'select') return true;
+    if (tag === 'textarea') return true;
+    
+    // Focusable por tabIndex
+    if (el.tabIndex >= 0) return true;
+    
+    // Roles ARIA interactivos
+    const role = el.getAttribute('role');
+    if (role && ['button', 'link', 'checkbox', 'radio', 'textbox', 'combobox', 
+                 'listbox', 'menuitem', 'tab', 'switch', 'option', 'searchbox'].includes(role)) {
+      return true;
+    }
+    
+    // ContentEditable
+    if (el.isContentEditable) return true;
+    
+    return false;
   }
 
   // Seleccionar elemento
   function selectElement(domElement) {
-    const info = DOMInspector.getInfoByDOMElement(domElement);
+    console.log('🎯 selectElement:', domElement.tagName, domElement);
+    
+    let info = DOMInspector.getInfoByDOMElement(domElement);
+    console.log('📋 Info directa:', info);
     
     if (!info) {
-      // Elemento no registrado, escaneamos primero
-      window.WebCopilot.refresh(true);
-      const newInfo = DOMInspector.getInfoByDOMElement(domElement);
-      if (newInfo) {
-        addToSelected(newInfo);
-      }
-      return;
+      // Intentar con el elemento encontrado por findInteractiveParent
+      // Puede que el target del click sea un hijo, no el elemento registrado
+      console.log('⚠️ Elemento no registrado directamente, buscando en registry...');
+      
+      // Forzar rescan
+      DOMInspector.scan();
+      info = DOMInspector.getInfoByDOMElement(domElement);
+      console.log('📋 Info después de rescan:', info);
     }
     
-    addToSelected(info);
+    if (info) {
+      console.log('✅ Info encontrada:', info.id, info.type, info.text);
+      addToSelected(info);
+    } else {
+      console.log('❌ No se pudo obtener info del elemento');
+      // Último intento: crear una entrada manual para este elemento
+      console.log('🔄 Intentando inspección manual...');
+      const manualInfo = DOMInspector.inspectSingle?.(domElement);
+      if (manualInfo) {
+        console.log('✅ Inspección manual exitosa:', manualInfo);
+        addToSelected(manualInfo);
+      }
+    }
   }
 
   // Agregar a seleccionados

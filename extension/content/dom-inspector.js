@@ -260,6 +260,20 @@ const DOMInspector = (function() {
     return elements;
   }
 
+  // Inspeccionar un solo elemento bajo demanda (para selección manual)
+  function inspectSingle(domElement) {
+    // Si ya está registrado, devolver info existente
+    const existing = elementMap.get(domElement);
+    if (existing) return existing;
+    
+    // Verificar que sea un elemento válido
+    if (!domElement || !domElement.tagName) return null;
+    
+    // Inspeccionar y registrar
+    const info = inspect(domElement);
+    return elementMap.get(domElement); // Devolver la versión con reference
+  }
+
   function generateSummary(elements) {
     return {
       totalElements: elements.length,
@@ -432,6 +446,7 @@ const DOMInspector = (function() {
     isElementValid,
     registerElement,
     generateStableReference,
+    inspectSingle,
     getElementMap: () => elementMap,
     getReverseMap: () => reverseMap,
     getStats,
