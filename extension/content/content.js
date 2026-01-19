@@ -228,7 +228,6 @@
       
       clearTimeout(mutationDebounce);
       mutationDebounce = setTimeout(() => {
-        checkSelectedElementsValidity();
         if (relevant.length > 5) {
           scanAndRender(false, 'mutation');
         }
@@ -241,21 +240,6 @@
       attributes: true,
       attributeFilter: ['style', 'class', 'hidden', 'disabled', 'aria-hidden', 'href']
     });
-  }
-
-  function checkSelectedElementsValidity() {
-    const selected = Widget.getSelectedElements();
-    let hasInvalid = false;
-    
-    selected.forEach(el => {
-      if (!DOMInspector.isElementValid(el.id)) {
-        hasInvalid = true;
-      }
-    });
-    
-    if (hasInvalid) {
-      scanAndRender(true, 'validity-check');
-    }
   }
 
   // ============ INICIALIZACIÓN ============
