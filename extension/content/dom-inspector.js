@@ -1,6 +1,5 @@
 /**
- * DOM Inspector v2.1.1 - Escaneo robusto con Shadow DOM
- * Fix: WeakMap no iterable, closest en nodos no-elemento
+ * DOM Inspector (MVP2) - Escaneo robusto con Shadow DOM
  */
 const DOMInspector = (function() {
   'use strict';
@@ -425,7 +424,7 @@ const DOMInspector = (function() {
   }
 
   function logStats() {
-    console.group('🔍 WebCopilot Scan Stats');
+    console.group('WebCopilot Scan Stats');
     console.log(`Total: ${lastScanStats.total} elementos`);
     console.log('Por tipo:', lastScanStats.byType);
     console.log('Por tag:', lastScanStats.byTag);

@@ -64,7 +64,7 @@ Crear un copiloto de navegación que:
 
 ---
 
-### MVP 4 — Agente con lenguaje natural (LLM)
+### MVP 4 — Agente con lenguaje natural (LLM) ✅
 > *Rol: ENTENDER*
 
 **Qué hace**
