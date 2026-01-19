@@ -178,11 +178,6 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
   // ============ EJECUCIÓN ============
 
   async function executeAction(action) {
-    const Actions = window.Actions;
-    if (!Actions) {
-      throw new Error('Módulo Actions no disponible');
-    }
-
     let result;
     
     switch (action.type) {
@@ -314,21 +309,15 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
   // ============ CALLBACKS ============
 
   function notifyStatus(status, message) {
-    if (onStatusChange) {
-      onStatusChange(status, message);
-    }
+    onStatusChange?.(status, message);
   }
 
   function notifyActionProposed(action) {
-    if (onActionProposed) {
-      onActionProposed(action);
-    }
+    onActionProposed?.(action);
   }
 
   function notifyActionExecuted(action, result) {
-    if (onActionExecuted) {
-      onActionExecuted(action, result);
-    }
+    onActionExecuted?.(action, result);
   }
 
   // ============ CONFIGURACIÓN ============
@@ -346,10 +335,10 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
   }
 
   function setCallbacks(callbacks) {
-    if (callbacks.onStatusChange) onStatusChange = callbacks.onStatusChange;
-    if (callbacks.onActionProposed) onActionProposed = callbacks.onActionProposed;
-    if (callbacks.onActionExecuted) onActionExecuted = callbacks.onActionExecuted;
-    if (callbacks.onError) onError = callbacks.onError;
+    onStatusChange = callbacks.onStatusChange;
+    onActionProposed = callbacks.onActionProposed;
+    onActionExecuted = callbacks.onActionExecuted;
+    onError = callbacks.onError;
   }
 
   // ============ API PÚBLICA ============

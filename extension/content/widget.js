@@ -823,7 +823,7 @@ const Widget = (function() {
     loadApiKey();
 
     // Toggle configuración
-    configToggle?.addEventListener('click', () => {
+    configToggle.addEventListener('click', () => {
       configSection.classList.toggle('visible');
       if (configSection.classList.contains('visible')) {
         apiKeyInput.value = Agent.isConfigured() ? '••••••••' : '';
@@ -831,7 +831,7 @@ const Widget = (function() {
     });
 
     // Guardar API key
-    saveKeyBtn?.addEventListener('click', () => {
+    saveKeyBtn.addEventListener('click', () => {
       const key = apiKeyInput.value.trim();
       if (key && !key.startsWith('••')) {
         saveApiKey(key);
@@ -842,9 +842,9 @@ const Widget = (function() {
     });
 
     // Enviar instrucción
-    sendBtn?.addEventListener('click', () => sendInstruction());
+    sendBtn.addEventListener('click', () => sendInstruction());
     
-    input?.addEventListener('keydown', (e) => {
+    input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendInstruction();
@@ -852,13 +852,13 @@ const Widget = (function() {
     });
 
     // Auto-resize textarea
-    input?.addEventListener('input', () => {
+    input.addEventListener('input', () => {
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 80) + 'px';
     });
 
     // Confirmar acción
-    confirmBtn?.addEventListener('click', async () => {
+    confirmBtn.addEventListener('click', async () => {
       if (pendingAction) {
         const result = await Agent.confirmAndExecute(pendingAction);
         if (result.success) {
@@ -869,7 +869,7 @@ const Widget = (function() {
     });
 
     // Cancelar acción
-    cancelBtn?.addEventListener('click', () => {
+    cancelBtn.addEventListener('click', () => {
       Agent.cancelPendingAction();
       pendingAction = null;
       hideActionProposal();
@@ -923,7 +923,6 @@ const Widget = (function() {
 
   function updateAgentStatus(status, message) {
     const statusEl = shadowRoot.querySelector('#wc-agent-status');
-    if (!statusEl) return;
     
     statusEl.textContent = message || status;
     statusEl.className = 'wc-agent-status';
@@ -941,7 +940,6 @@ const Widget = (function() {
 
   function showResponse(message, type) {
     const responseEl = shadowRoot.querySelector('#wc-agent-response');
-    if (!responseEl) return;
     
     responseEl.textContent = message;
     responseEl.className = 'wc-agent-response visible';
@@ -954,8 +952,6 @@ const Widget = (function() {
     const actionEl = shadowRoot.querySelector('#wc-agent-action');
     const detailEl = shadowRoot.querySelector('#wc-agent-action-detail');
     const targetEl = shadowRoot.querySelector('#wc-agent-action-target');
-    
-    if (!actionEl) return;
     
     const actionLabels = {
       click: '👆 Click',
@@ -985,9 +981,7 @@ const Widget = (function() {
 
   function hideActionProposal() {
     const actionEl = shadowRoot.querySelector('#wc-agent-action');
-    if (actionEl) {
-      actionEl.classList.remove('visible');
-    }
+    actionEl.classList.remove('visible');
     DOMInspector.clearHighlight();
   }
 
