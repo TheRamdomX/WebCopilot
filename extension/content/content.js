@@ -1,5 +1,5 @@
 /**
- * WebCopilot Content Script v2.1
+ * WebCopilot Content Script (MVP 2)
  * Escaneo con estabilidad de DOM y detección de routing SPA
  */
 (function() {
@@ -228,7 +228,6 @@
       
       clearTimeout(mutationDebounce);
       mutationDebounce = setTimeout(() => {
-        checkSelectedElementsValidity();
         if (relevant.length > 5) {
           scanAndRender(false, 'mutation');
         }
@@ -241,21 +240,6 @@
       attributes: true,
       attributeFilter: ['style', 'class', 'hidden', 'disabled', 'aria-hidden', 'href']
     });
-  }
-
-  function checkSelectedElementsValidity() {
-    const selected = Widget.getSelectedElements();
-    let hasInvalid = false;
-    
-    selected.forEach(el => {
-      if (!DOMInspector.isElementValid(el.id)) {
-        hasInvalid = true;
-      }
-    });
-    
-    if (hasInvalid) {
-      scanAndRender(true, 'validity-check');
-    }
   }
 
   // ============ INICIALIZACIÓN ============
@@ -324,10 +308,19 @@
       pressKey: Actions.pressKey,
       sequence: Actions.sequence,
       
+      // Agent (MVP 4)
+      agent: {
+        process: Agent.processInstruction,
+        confirm: Agent.confirmAndExecute,
+        cancel: Agent.cancelPendingAction,
+        isConfigured: Agent.isConfigured,
+        isProcessing: Agent.isProcessing
+      },
+      
       // Debug
       logStats: DOMInspector.logStats,
       
-      version: '3.0.0'
+      version: '4.0.0'
     };
     
     console.log('WebCopilot listo');

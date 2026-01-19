@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "WebCopilot - DOM Inspector",
-  "version": "3.2.2",
-  "description": "Inspecciona el DOM, selecciona elementos y ejecuta acciones",
+  "name": "WebCopilot - AI Navigator",
+  "version": "4.1.0",
+  "description": "Navega la web con lenguaje natural usando IA",
   "permissions": [
-    "activeTab"
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://generativelanguage.googleapis.com/*"
   ],
   "content_scripts": [
     {
@@ -12,6 +16,7 @@
       "js": [
         "content/dom-inspector.js",
         "content/actions.js",
+        "content/agent.js",
         "content/widget.js",
         "content/content.js"
       ],
@@ -25,6 +30,6 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "WebCopilot DOM Inspector"
+    "default_title": "WebCopilot AI Navigator"
   }
 }

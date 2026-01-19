@@ -93,6 +93,48 @@ const Widget = (function() {
     .wc-action-select-group { display: none; margin-top: 8px; }
     .wc-action-select-group.visible { display: flex; gap: 6px; }
     .wc-action-select-group select { flex: 1; background: #1e1e2e; border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; color: #cdd6f4; font-size: 12px; }
+    
+    /* MVP 4: Agente conversacional */
+    .wc-agent-section { background: #313244; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #45475a; }
+    .wc-agent-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .wc-agent-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #f9e2af; display: flex; align-items: center; gap: 6px; }
+    .wc-agent-title::before { content: '🤖'; }
+    .wc-agent-status { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #45475a; color: #6c7086; }
+    .wc-agent-status.thinking { background: #f9e2af; color: #1e1e2e; animation: pulse 1s infinite; }
+    .wc-agent-status.success { background: #a6e3a1; color: #1e1e2e; }
+    .wc-agent-status.error { background: #f38ba8; color: #1e1e2e; }
+    .wc-agent-status.proposed { background: #89b4fa; color: #1e1e2e; }
+    .wc-agent-input-row { display: flex; gap: 8px; }
+    .wc-agent-input { flex: 1; background: #1e1e2e; border: 1px solid #45475a; border-radius: 8px; padding: 10px 12px; color: #cdd6f4; font-size: 13px; outline: none; resize: none; min-height: 40px; max-height: 80px; }
+    .wc-agent-input:focus { border-color: #f9e2af; }
+    .wc-agent-input::placeholder { color: #6c7086; }
+    .wc-agent-input:disabled { opacity: 0.6; cursor: not-allowed; }
+    .wc-agent-send { background: #f9e2af; border: none; color: #1e1e2e; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .wc-agent-send:hover { background: #f5d67a; }
+    .wc-agent-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wc-agent-response { margin-top: 10px; padding: 10px; background: #1e1e2e; border-radius: 8px; font-size: 12px; line-height: 1.5; display: none; }
+    .wc-agent-response.visible { display: block; animation: fadeIn 0.2s ease; }
+    .wc-agent-response.thinking { color: #6c7086; font-style: italic; }
+    .wc-agent-response.clarification { color: #f9e2af; border-left: 3px solid #f9e2af; padding-left: 10px; }
+    .wc-agent-response.error { color: #f38ba8; border-left: 3px solid #f38ba8; padding-left: 10px; }
+    .wc-agent-action { margin-top: 10px; padding: 10px; background: #3b4261; border-radius: 8px; border: 1px solid #89b4fa; display: none; }
+    .wc-agent-action.visible { display: block; animation: fadeIn 0.2s ease; }
+    .wc-agent-action-header { font-size: 10px; text-transform: uppercase; color: #89b4fa; margin-bottom: 6px; }
+    .wc-agent-action-detail { font-size: 12px; color: #cdd6f4; margin-bottom: 8px; }
+    .wc-agent-action-target { font-size: 11px; color: #a6e3a1; background: #1e1e2e; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
+    .wc-agent-action-buttons { display: flex; gap: 8px; }
+    .wc-agent-confirm { background: #a6e3a1; border: none; color: #1e1e2e; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; }
+    .wc-agent-confirm:hover { background: #94d990; }
+    .wc-agent-cancel { background: transparent; border: 1px solid #f38ba8; color: #f38ba8; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+    .wc-agent-cancel:hover { background: #f38ba8; color: #1e1e2e; }
+    .wc-agent-config { margin-top: 10px; padding: 10px; background: #1e1e2e; border-radius: 8px; display: none; }
+    .wc-agent-config.visible { display: block; }
+    .wc-agent-config-label { font-size: 10px; color: #6c7086; margin-bottom: 6px; }
+    .wc-agent-config-input { width: 100%; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 8px 10px; color: #cdd6f4; font-size: 12px; font-family: monospace; }
+    .wc-agent-config-input:focus { border-color: #f9e2af; outline: none; }
+    .wc-agent-config-btn { margin-top: 8px; background: #f9e2af; border: none; color: #1e1e2e; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; width: 100%; }
+    .wc-agent-toggle { background: transparent; border: none; color: #6c7086; cursor: pointer; font-size: 12px; padding: 2px 6px; }
+    .wc-agent-toggle:hover { color: #cdd6f4; }
   `;
 
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -121,6 +163,36 @@ const Widget = (function() {
     return '<div class="wc-element type-' + el.type + '" data-element-id="' + el.id + '"><div class="wc-element-header"><span class="wc-element-type">' + el.type + '</span><span class="wc-element-id">' + el.id + '</span></div><div class="wc-element-text ' + (el.text ? '' : 'empty') + '">' + escapeHtml(text) + '</div><div class="wc-element-meta">' + meta + '</div>' + refHtml + actionsHtml + '</div>';
   }
 
+  // MVP 4: Renderizar sección del agente
+  function renderAgentSection() {
+    return `<div class="wc-agent-section">
+      <div class="wc-agent-header">
+        <span class="wc-agent-title">Agente IA</span>
+        <span class="wc-agent-status" id="wc-agent-status">Listo</span>
+        <button class="wc-agent-toggle" id="wc-agent-config-toggle" title="Configurar API">⚙️</button>
+      </div>
+      <div class="wc-agent-config" id="wc-agent-config">
+        <div class="wc-agent-config-label">API Key de Gemini</div>
+        <input type="password" class="wc-agent-config-input" id="wc-agent-apikey" placeholder="AIza...">
+        <button class="wc-agent-config-btn" id="wc-agent-save-key">Guardar</button>
+      </div>
+      <div class="wc-agent-input-row">
+        <textarea class="wc-agent-input" id="wc-agent-input" placeholder="Escribe una instrucción..." rows="1"></textarea>
+        <button class="wc-agent-send" id="wc-agent-send">➤</button>
+      </div>
+      <div class="wc-agent-response" id="wc-agent-response"></div>
+      <div class="wc-agent-action" id="wc-agent-action">
+        <div class="wc-agent-action-header">Acción propuesta</div>
+        <div class="wc-agent-action-detail" id="wc-agent-action-detail"></div>
+        <div class="wc-agent-action-target" id="wc-agent-action-target"></div>
+        <div class="wc-agent-action-buttons">
+          <button class="wc-agent-confirm" id="wc-agent-confirm">✓ Ejecutar</button>
+          <button class="wc-agent-cancel" id="wc-agent-cancel">✗ Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   function render(elements, summary) {
     shadowRoot.querySelector('.wc-widget') ? renderIncremental(elements, summary) : renderFull(elements, summary);
   }
@@ -128,12 +200,14 @@ const Widget = (function() {
   function renderFull(elements, summary) {
     const html = elements.length ? elements.map(renderElement).join('') : '<div class="wc-empty"><div class="wc-empty-icon">🔍</div><div>No se encontraron elementos</div></div>';
     const modeIndicator = selectionMode ? '<span class="wc-mode-indicator">SELECCIÓN ACTIVA</span>' : '';
-    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
+    const agentSection = renderAgentSection();
+    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + agentSection + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
     const t = document.createElement('template'); t.innerHTML = widget;
     shadowRoot.appendChild(t.content.cloneNode(true));
     currentElementIds = new Set(elements.map(function(e) { return e.id; }));
     attachEvents();
     attachElementEvents();
+    attachAgentEvents();
   }
 
   function renderIncremental(elements, summary) {
@@ -727,6 +801,208 @@ const Widget = (function() {
     } catch (err) {
       resultEl.className = 'wc-action-result visible error';
       resultEl.textContent = `✗ ${err.message}`;
+    }
+  }
+
+  // ============ MVP 4: AGENTE ============
+
+  let pendingAction = null;
+  const STORAGE_KEY = 'webcopilot_gemini_key';
+
+  function attachAgentEvents() {
+    const input = shadowRoot.querySelector('#wc-agent-input');
+    const sendBtn = shadowRoot.querySelector('#wc-agent-send');
+    const configToggle = shadowRoot.querySelector('#wc-agent-config-toggle');
+    const configSection = shadowRoot.querySelector('#wc-agent-config');
+    const saveKeyBtn = shadowRoot.querySelector('#wc-agent-save-key');
+    const apiKeyInput = shadowRoot.querySelector('#wc-agent-apikey');
+    const confirmBtn = shadowRoot.querySelector('#wc-agent-confirm');
+    const cancelBtn = shadowRoot.querySelector('#wc-agent-cancel');
+
+    // Cargar API key guardada
+    loadApiKey();
+
+    // Toggle configuración
+    configToggle.addEventListener('click', () => {
+      configSection.classList.toggle('visible');
+      if (configSection.classList.contains('visible')) {
+        apiKeyInput.value = Agent.isConfigured() ? '••••••••' : '';
+      }
+    });
+
+    // Guardar API key
+    saveKeyBtn.addEventListener('click', () => {
+      const key = apiKeyInput.value.trim();
+      if (key && !key.startsWith('••')) {
+        saveApiKey(key);
+        Agent.setApiKey(key);
+        configSection.classList.remove('visible');
+        updateAgentStatus('idle', 'Configurado');
+      }
+    });
+
+    // Enviar instrucción
+    sendBtn.addEventListener('click', () => sendInstruction());
+    
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendInstruction();
+      }
+    });
+
+    // Auto-resize textarea
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+    });
+
+    // Confirmar acción
+    confirmBtn.addEventListener('click', async () => {
+      if (pendingAction) {
+        const result = await Agent.confirmAndExecute(pendingAction);
+        if (result.success) {
+          hideActionProposal();
+          showResponse('✓ Acción ejecutada correctamente', 'success');
+        }
+      }
+    });
+
+    // Cancelar acción
+    cancelBtn.addEventListener('click', () => {
+      Agent.cancelPendingAction();
+      pendingAction = null;
+      hideActionProposal();
+      updateAgentStatus('idle', 'Cancelado');
+    });
+
+    // Configurar callbacks del agente
+    Agent.setCallbacks({
+      onStatusChange: updateAgentStatus,
+      onActionProposed: showActionProposal,
+      onActionExecuted: (action, result) => {
+        pendingAction = null;
+        hideActionProposal();
+      },
+      onError: (error) => {
+        showResponse(error.message, 'error');
+      }
+    });
+  }
+
+  async function sendInstruction() {
+    const input = shadowRoot.querySelector('#wc-agent-input');
+    const instruction = input?.value.trim();
+    
+    if (!instruction) return;
+    
+    if (!Agent.isConfigured()) {
+      showResponse('⚙️ Configura tu API key de Gemini primero', 'error');
+      shadowRoot.querySelector('#wc-agent-config').classList.add('visible');
+      return;
+    }
+
+    input.value = '';
+    input.style.height = 'auto';
+    hideActionProposal();
+    
+    showResponse('🤔 Analizando...', 'thinking');
+    
+    const result = await Agent.processInstruction(instruction);
+    
+    if (result.success) {
+      if (result.requiresConfirmation) {
+        showResponse(result.action.reasoning, '');
+      }
+    } else if (result.clarification) {
+      showResponse(result.clarification, 'clarification');
+    } else if (result.error) {
+      showResponse(result.error, 'error');
+    }
+  }
+
+  function updateAgentStatus(status, message) {
+    const statusEl = shadowRoot.querySelector('#wc-agent-status');
+    
+    statusEl.textContent = message || status;
+    statusEl.className = 'wc-agent-status';
+    
+    if (status === 'thinking' || status === 'executing') {
+      statusEl.classList.add('thinking');
+    } else if (status === 'success') {
+      statusEl.classList.add('success');
+    } else if (status === 'error') {
+      statusEl.classList.add('error');
+    } else if (status === 'proposed') {
+      statusEl.classList.add('proposed');
+    }
+  }
+
+  function showResponse(message, type) {
+    const responseEl = shadowRoot.querySelector('#wc-agent-response');
+    
+    responseEl.textContent = message;
+    responseEl.className = 'wc-agent-response visible';
+    if (type) responseEl.classList.add(type);
+  }
+
+  function showActionProposal(action) {
+    pendingAction = action;
+    
+    const actionEl = shadowRoot.querySelector('#wc-agent-action');
+    const detailEl = shadowRoot.querySelector('#wc-agent-action-detail');
+    const targetEl = shadowRoot.querySelector('#wc-agent-action-target');
+    
+    const actionLabels = {
+      click: '👆 Click',
+      type: '⌨️ Escribir',
+      focus: '🎯 Focus',
+      hover: '🖱️ Hover',
+      select: '📋 Seleccionar',
+      check: '☑️ Marcar'
+    };
+    
+    let detail = actionLabels[action.type] || action.type;
+    if (action.value) {
+      detail += `: "${action.value}"`;
+    }
+    
+    detailEl.textContent = detail;
+    targetEl.textContent = action.elementInfo?.text || action.elementId;
+    
+    actionEl.classList.add('visible');
+    
+    // Highlight del elemento objetivo
+    const domEl = DOMInspector.getDOMElementById(action.elementId);
+    if (domEl) {
+      DOMInspector.highlightSelected(domEl);
+    }
+  }
+
+  function hideActionProposal() {
+    const actionEl = shadowRoot.querySelector('#wc-agent-action');
+    actionEl.classList.remove('visible');
+    DOMInspector.clearHighlight();
+  }
+
+  function saveApiKey(key) {
+    try {
+      localStorage.setItem(STORAGE_KEY, btoa(key));
+    } catch (e) {
+      console.warn('No se pudo guardar la API key');
+    }
+  }
+
+  function loadApiKey() {
+    try {
+      const encoded = localStorage.getItem(STORAGE_KEY);
+      if (encoded) {
+        const key = atob(encoded);
+        Agent.setApiKey(key);
+        updateAgentStatus('idle', 'Configurado');
+      }
+    } catch (e) {
+      console.warn('No se pudo cargar la API key');
     }
   }
 
