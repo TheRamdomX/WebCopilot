@@ -233,7 +233,7 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
 
     // 4. Verificar si entendió la instrucción
     if (!response.understood) {
-    notifyStatus('clarification', response.clarification || 'No entendí la instrucción');
+    notifyStatus('clarification', 'Necesito más info');
     return {
         success: false,
         understood: false,
@@ -246,7 +246,7 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
     const validation = validateAction(response.action, elements);
     
     if (!validation.valid) {
-    notifyStatus('error', validation.reason);
+    notifyStatus('error', 'Error');
     return {
         success: false,
         error: validation.reason,
@@ -262,7 +262,7 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
     };
 
     notifyActionProposed(proposedAction);
-    notifyStatus('proposed', `Acción: ${response.action.type} en "${validation.element.text || validation.element.id}"`);
+    notifyStatus('proposed', 'Confirmar?');
 
 /*
     // 7. Ejecutar si autoExecute está habilitado
