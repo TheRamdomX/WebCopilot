@@ -55,10 +55,9 @@ Si no puedes ejecutar la acción, responde:
   // ============ BUILD ============
 
   function buildElementContext() {
-    const elements = window.WebCopilot?.getElements() || [];
+    const elements = window.WebCopilot.getElements();
     
-    // Construir contexto compacto de elementos
-    const elementList = elements.map(el => ({
+    return elements.map(el => ({
       id: el.id,
       type: el.type,
       text: (el.text || '').slice(0, 100),
@@ -67,22 +66,36 @@ Si no puedes ejecutar la acción, responde:
       inputType: el.inputType || null,
       isDisabled: el.isDisabled || false
     }));
-
-    return elementList;
   }
 
-  function buildPrompt(userInstruction, elements) {
+  function buildPrompt(userInstruction, elements, memoryContext = null) {
     const elementContext = elements.length > 0 
       ? JSON.stringify(elements, null, 2)
       : '(No hay elementos interactivos detectados)';
 
+    let memorySection = '';
+    if (memoryContext) {
+      const { knownElements, successfulPatterns } = memoryContext;
+      
+      if (knownElements.length > 0) {
+        memorySection += `\nELEMENTOS CONOCIDOS (de visitas anteriores):
+${JSON.stringify(knownElements.slice(0, 10), null, 2)}`;
+      }
+      
+      if (successfulPatterns.length > 0) {
+        memorySection += `\nPATRONES EXITOSOS (acciones que funcionaron antes):
+${JSON.stringify(successfulPatterns.slice(0, 5), null, 2)}`;
+      }
+    }
+
     return `ELEMENTOS DISPONIBLES EN LA PÁGINA:
 ${elementContext}
-
+${memorySection}
 INSTRUCCIÓN DEL USUARIO:
 "${userInstruction}"
 
-Analiza la instrucción y responde en JSON estricto según el formato especificado.`;
+Analiza la instrucción y responde en JSON estricto según el formato especificado.
+${memoryContext ? 'NOTA: Si hay patrones exitosos relevantes, prioriza esos elementos.' : ''}`;
   }
 
   // ============ API DE GEMINI ============
@@ -212,7 +225,7 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
    * Procesa una instrucción en lenguaje natural
    * @param {string} instruction - Instrucción del usuario
    * @param {Object} options - Opciones
-   * @param {boolean} options.autoExecute - Ejecutar automáticamente si es seguro
+   * @param {Object} options.memoryContext - Contexto de memoria (MVP 5)
    * @returns {Object} Resultado del procesamiento
    */
   async function processInstruction(instruction, options = {}) {
@@ -223,9 +236,8 @@ Analiza la instrucción y responde en JSON estricto según el formato especifica
     // 1. Obtener contexto de elementos
     const elements = buildElementContext();
 
-
-    // 2. Construir prompt
-    const prompt = buildPrompt(instruction, elements);
+    // 2. Construir prompt (con memoria si está disponible)
+    const prompt = buildPrompt(instruction, elements, options.memoryContext);
 
     // 3. Llamar a Gemini
     notifyStatus('thinking', 'Consultando al agente...');

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebCopilot - AI Navigator",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "description": "Navega la web con lenguaje natural usando IA",
   "permissions": [
     "activeTab",
@@ -14,6 +14,10 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "content/memory/db.js",
+        "content/memory/sites.js",
+        "content/memory/elements.js",
+        "content/memory/patterns.js",
         "content/dom-inspector.js",
         "content/actions.js",
         "content/agent.js",
