@@ -18,12 +18,14 @@ extension/
     ├── actions.js         # Ejecución de acciones
     ├── agent.js           # Agente LLM (consume memoria)
     ├── widget.js          # UI con interfaz conversacional
-    ├── memory/            # 🆕 Sistema de memoria
-    │   ├── db.js          # Apertura y versionado IndexedDB
-    │   ├── sites.js       # Conocimiento por dominio
-    │   ├── elements.js    # Elementos semánticos
-    │   └── patterns.js    # Intenciones y acciones exitosas
-    └── content.js         # Orquestación (único que escribe)
+    ├── content.js         # Orquestación (único que escribe)
+    ├── console-bridge.js  # 🆕 Bridge content script ↔ page
+    ├── page-bridge.js     # 🆕 Expone $wc en consola
+    └── memory/            # 🆕 Sistema de memoria
+        ├── db.js          # IndexedDB wrapper
+        ├── sites.js       # Conocimiento por dominio
+        ├── elements.js    # Elementos semánticos
+        └── patterns.js    # Intenciones y acciones
 ```
 
 ---
@@ -188,6 +190,7 @@ Primera visita a github.com:
 3. Usuario confirma → éxito
 4. Sistema aprende: intent="login" → element="Sign in button"
 
+
 Segunda visita:
 1. Usuario: "login"
 2. Agente consulta memoria → conoce el patrón
@@ -206,13 +209,79 @@ El botón cambió de "Sign in" a "Log in":
 
 ---
 
+## Console Bridge (Acceso desde Consola)
+
+### Introducción
+
+El Console Bridge proporciona una interfaz para interactuar con WebCopilot desde la consola del navegador. Disponible como `$wc` o `WebCopilotBridge`.
+
+### API
+
+```javascript
+// Ayuda
+$wc.help()                    // Muestra comandos disponibles
+
+// Navegación de elementos
+$wc.elements()                // Lista todos los elementos
+$wc.elements({ type: 'button' })  // Filtra por tipo/tag/text
+$wc.find('login')             // Busca por texto, id o referencia
+$wc.inspect(5)                // Inspección detallada
+$wc.highlight(5)              // Resalta elemento en página
+
+// Acciones
+$wc.click(5)                  // Click en elemento
+$wc.type(3, 'hola')           // Escribir texto
+$wc.focus(2)                  // Enfocar elemento
+$wc.hover(4)                  // Hover
+$wc.select(6, 'opcion')       // Seleccionar en dropdown
+$wc.check(7, true)            // Marcar/desmarcar checkbox
+
+// Agente IA
+$wc.do('click en iniciar sesión')  // Comando en lenguaje natural
+$wc.confirm()                      // Confirmar acción propuesta
+$wc.cancel()                       // Cancelar
+
+// Memoria
+$wc.memory.show()             // Ver conocimiento del sitio
+$wc.memory.stats()            // Estadísticas
+$wc.memory.clear()            // Borrar memoria del sitio
+
+// Debug
+$wc.debug.dom()               // Análisis DOM y estadísticas
+$wc.debug.benchmark(10)       // Medir rendimiento (n iteraciones)
+
+// Utilidades
+$wc.scan()                    // Re-escanear página
+$wc.summary()                 // Resumen de página
+$wc.export()                  // Exportar estado a JSON
+$wc.status()                  // Estado general
+```
+
+### Ejemplos
+
+```javascript
+// Automatización
+await $wc.click('login')
+await $wc.type('email', 'usuario@ejemplo.com')
+await $wc.click('submit')
+
+// Lenguaje natural
+await $wc.do('busca el campo de email y escribe test@test.com')
+await $wc.confirm()
+
+// Debug
+$wc.elements({ type: 'button' })
+$wc.debug.benchmark(5)
+```
+
+---
+
 ## Limitaciones (por diseño)
 
 - ❌ No generaliza entre dominios distintos
 - ❌ No toma decisiones autónomas
 - ❌ No almacena datos sensibles
 - ❌ No sincroniza entre dispositivos
-- ❌ Agente nunca escribe directamente
 
 ---
 
@@ -224,6 +293,3 @@ El botón cambió de "Sign in" a "Log in":
 | Privacidad | Solo descriptores semánticos, no contenido |
 | Control | Usuario puede borrar memoria por sitio |
 | Integridad | Solo el orquestador escribe |
-
-
-
