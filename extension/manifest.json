@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "WebCopilot - AI Navigator",
-  "version": "4.1.0",
+  "name": "WebCopilot",
+  "version": "5.1.0",
   "description": "Navega la web con lenguaje natural usando IA",
   "permissions": [
     "activeTab",
@@ -14,14 +14,25 @@
     {
       "matches": ["<all_urls>"],
       "js": [
+        "content/memory/db.js",
+        "content/memory/sites.js",
+        "content/memory/elements.js",
+        "content/memory/patterns.js",
         "content/dom-inspector.js",
         "content/actions.js",
         "content/agent.js",
         "content/widget.js",
-        "content/content.js"
+        "content/content.js",
+        "content/console-bridge.js"
       ],
       "css": [],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/page-bridge.js"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {

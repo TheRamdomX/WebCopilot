@@ -250,28 +250,31 @@
 
     console.log('WebCopilot inicializando...');
 
-    // 1. Inicializar widget (sin datos aún)
+    // 1. Inicializar memoria
+    await initializeMemory();
+
+    // 2. Inicializar widget (sin datos aún)
     Widget.init();
     
-    // 2. Esperar estabilidad del DOM
+    // 3. Esperar estabilidad del DOM
     await waitForDOMStability();
     
-    // 3. Primer escaneo
+    // 4. Primer escaneo
     scanAndRender(true, 'init');
     DOMInspector.logStats();
     
-    // 4. Configurar detección de routing
+    // 5. Configurar detección de routing
     setupRouteChangeDetection();
     
-    // 5. Configurar observer continuo
+    // 6. Configurar observer continuo
     setupContinuousObserver();
     
-    // 6. Auto-refresh si no minimizado
+    // 7. Auto-refresh si no minimizado
     if (!Widget.isMinimized()) {
       Widget.startAutoRefresh();
     }
     
-    // 7. Exponer API
+    // 8. Exponer API
     window.WebCopilot = {
       // Scan
       refresh: (force) => scanAndRender(force, 'api'),
@@ -310,20 +313,142 @@
       
       // Agent (MVP 4)
       agent: {
-        process: Agent.processInstruction,
-        confirm: Agent.confirmAndExecute,
+        process: processWithMemory,
+        confirm: confirmWithLearning,
         cancel: Agent.cancelPendingAction,
         isConfigured: Agent.isConfigured,
         isProcessing: Agent.isProcessing
       },
       
+      // Memory (MVP 5)
+      memory: {
+        getSiteKnowledge: getSiteKnowledge,
+        clearSiteMemory: clearSiteMemory,
+        getStats: getMemoryStats,
+        invalidateElement: MemoryElements.invalidate
+      },
+      
       // Debug
       logStats: DOMInspector.logStats,
       
-      version: '4.0.0'
+      version: '5.0.0'
     };
     
     console.log('WebCopilot listo');
+  }
+
+  // ============ MEMORIA (MVP 5) ============
+
+  async function initializeMemory() {
+    const domain = location.hostname;
+    await MemoryDB.open();
+    await MemorySites.getOrCreate(domain);
+    console.log(`WebCopilot: Memoria inicializada para ${domain}`);
+  }
+
+  async function getSiteKnowledge() {
+    const domain = location.hostname;
+    const elements = await MemoryElements.getValidBySite(domain);
+    const patterns = await MemoryPatterns.getTopPatterns(domain);
+    
+    return {
+      domain,
+      elements: elements.map(e => ({
+        id: e.id,
+        role: e.role,
+        hints: e.semanticHints,
+        descriptors: e.descriptors,
+        confidence: e.confidence
+      })),
+      patterns: patterns.map(p => ({
+        intent: p.intent,
+        variants: p.intentVariants,
+        action: p.preferredAction,
+        successRate: p.successCount / (p.successCount + p.failCount)
+      }))
+    };
+  }
+
+  async function clearSiteMemory() {
+    const domain = location.hostname;
+    await MemorySites.remove(domain);
+    console.log(`WebCopilot: Memoria borrada para ${domain}`);
+  }
+
+  async function getMemoryStats() {
+    const domain = location.hostname;
+    return MemorySites.getStats(domain);
+  }
+
+  async function buildAgentContext() {
+    const knowledge = await getSiteKnowledge();
+    return {
+      knownElements: knowledge.elements,
+      successfulPatterns: knowledge.patterns
+    };
+  }
+
+  // Wrapper que inyecta contexto de memoria al agente
+  async function processWithMemory(instruction, options = {}) {
+    const context = await buildAgentContext();
+    return Agent.processInstruction(instruction, { ...options, memoryContext: context });
+  }
+
+  // Wrapper que aprende de acciones exitosas
+  let lastProcessedAction = null;
+
+  async function confirmWithLearning(action) {
+    lastProcessedAction = action;
+    const result = await Agent.confirmAndExecute(action);
+    
+    if (result.success) {
+      await learnFromSuccess(action);
+    } else {
+      await learnFromFailure(action);
+    }
+    
+    return result;
+  }
+
+  async function learnFromSuccess(action) {
+    const domain = location.hostname;
+    const elementInfo = action.elementInfo;
+    
+    // Guardar o actualizar elemento
+    await MemoryElements.saveOrUpdate({
+      siteId: domain,
+      role: elementInfo.type,
+      semanticHint: action.reasoning,
+      descriptors: [elementInfo.text, elementInfo.reference].filter(Boolean)
+    });
+    
+    // Registrar patrón exitoso
+    await MemoryPatterns.recordSuccess({
+      siteId: domain,
+      intent: action.reasoning,
+      elementId: elementInfo.id,
+      action: action.type
+    });
+    
+    console.log(`WebCopilot: Aprendido patrón "${action.reasoning}" → ${action.type}`);
+  }
+
+  async function learnFromFailure(action) {
+    const domain = location.hostname;
+    
+    // Reducir confianza del elemento
+    if (action.elementInfo?.id) {
+      const elements = await MemoryElements.getBySite(domain);
+      const match = elements.find(e => 
+        e.descriptors.includes(action.elementInfo.text)
+      );
+      if (match) {
+        await MemoryElements.decreaseConfidence(match.id);
+      }
+    }
+    
+    // Registrar fallo de patrón
+    await MemoryPatterns.recordFailure(domain, action.reasoning);
   }
 
   // ============ ARRANQUE ============

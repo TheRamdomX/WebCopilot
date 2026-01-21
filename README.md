@@ -79,7 +79,7 @@ Crear un copiloto de navegación que:
 
 ---
 
-### MVP 5 — Memoria y modelo por sitio
+### MVP 5 — Memoria y modelo por sitio ✅
 > *Rol: APRENDER*
 
 **Qué hace**
