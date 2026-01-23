@@ -8,7 +8,9 @@ const Widget = (function() {
   let container, shadowRoot, isMinimized = false, isDragging = false, dragOffset = { x: 0, y: 0 };
   let autoRefreshInterval = null, currentElementIds = new Set();
   let selectionMode = false;
+  let widgetMode = 'ia'; // 'ia' o 'manual'
   const AUTO_REFRESH_DELAY = 1000;
+  const MODE_STORAGE_KEY = 'webcopilot_widget_mode';
 
   const STYLES = `
     :host { all: initial; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -135,6 +137,21 @@ const Widget = (function() {
     .wc-agent-config-btn { margin-top: 8px; background: #f9e2af; border: none; color: #1e1e2e; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; width: 100%; }
     .wc-agent-toggle { background: transparent; border: none; color: #6c7086; cursor: pointer; font-size: 12px; padding: 2px 6px; }
     .wc-agent-toggle:hover { color: #cdd6f4; }
+    
+    /* Mode switcher */
+    .wc-mode-switch { display: flex; background: #1e1e2e; border-radius: 6px; padding: 2px; margin-bottom: 12px; }
+    .wc-mode-btn { flex: 1; background: transparent; border: none; color: #6c7086; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .wc-mode-btn:hover { color: #cdd6f4; }
+    .wc-mode-btn.active { background: #45475a; color: #cdd6f4; }
+    .wc-mode-btn.active.ia { background: #f9e2af; color: #1e1e2e; }
+    .wc-mode-btn.active.manual { background: #89b4fa; color: #1e1e2e; }
+    .wc-agent-section.hidden, .wc-manual-section.hidden { display: none; }
+    .wc-manual-section { background: #313244; border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid #45475a; }
+    .wc-manual-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .wc-manual-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #89b4fa; display: flex; align-items: center; gap: 6px; }
+    .wc-manual-title::before { content: '🎯'; }
+    .wc-manual-hint { font-size: 12px; color: #6c7086; line-height: 1.5; }
+    .wc-widget.mode-ia .wc-summary, .wc-widget.mode-ia .wc-elements-title, .wc-widget.mode-ia .wc-element-list, .wc-widget.mode-ia .wc-footer { display: none; }
   `;
 
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -165,7 +182,7 @@ const Widget = (function() {
 
   // MVP 4: Renderizar sección del agente
   function renderAgentSection() {
-    return `<div class="wc-agent-section">
+    return `<div class="wc-agent-section${widgetMode !== 'ia' ? ' hidden' : ''}">
       <div class="wc-agent-header">
         <span class="wc-agent-title">Agente IA</span>
         <span class="wc-agent-status" id="wc-agent-status">Listo</span>
@@ -193,21 +210,48 @@ const Widget = (function() {
     </div>`;
   }
 
+  // Renderizar sección manual
+  function renderManualSection() {
+    return `<div class="wc-manual-section${widgetMode !== 'manual' ? ' hidden' : ''}">
+      <div class="wc-manual-header">
+        <span class="wc-manual-title">Modo Manual</span>
+      </div>
+      <div class="wc-manual-hint">
+        Haz click en los elementos de la lista para ver las acciones disponibles, o usa el botón <strong>Seleccionar</strong> para elegir elementos directamente en la página.
+      </div>
+    </div>`;
+  }
+
+  // Renderizar switch de modo
+  function renderModeSwitch() {
+    return `<div class="wc-mode-switch">
+      <button class="wc-mode-btn ia${widgetMode === 'ia' ? ' active' : ''}" data-mode="ia">🤖 Modo IA</button>
+      <button class="wc-mode-btn manual${widgetMode === 'manual' ? ' active' : ''}" data-mode="manual">🎯 Modo Manual</button>
+    </div>`;
+  }
+
   function render(elements, summary) {
     shadowRoot.querySelector('.wc-widget') ? renderIncremental(elements, summary) : renderFull(elements, summary);
   }
 
   function renderFull(elements, summary) {
+    // Cargar modo guardado
+    loadWidgetMode();
+    
     const html = elements.length ? elements.map(renderElement).join('') : '<div class="wc-empty"><div class="wc-empty-icon">🔍</div><div>No se encontraron elementos</div></div>';
     const modeIndicator = selectionMode ? '<span class="wc-mode-indicator">SELECCIÓN ACTIVA</span>' : '';
+    const modeSwitch = renderModeSwitch();
     const agentSection = renderAgentSection();
-    const widget = '<div class="wc-widget ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + agentSection + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
+    const manualSection = renderManualSection();
+    const modeClass = 'mode-' + widgetMode;
+    const widget = '<div class="wc-widget ' + modeClass + ' ' + (isMinimized ? 'minimized' : '') + '"><div class="wc-header"><div class="wc-title"><div class="wc-title-icon"></div>WebCopilot</div><div class="wc-controls">' + modeIndicator + '<button class="wc-btn" id="wc-minimize" title="Minimizar">−</button></div></div><div class="wc-content">' + modeSwitch + agentSection + manualSection + renderSummary(summary) + '<div class="wc-elements-title">Elementos detectados</div><div class="wc-element-list">' + html + '</div></div><div class="wc-footer"><span class="wc-status">' + summary.totalElements + ' elementos • ' + new Date().toLocaleTimeString() + '</span><button class="wc-selection-btn' + (selectionMode ? ' active' : '') + '" id="wc-selection">⎯⊙ Seleccionar</button><button class="wc-refresh-btn" id="wc-refresh">↻ Actualizar</button></div></div>';
     const t = document.createElement('template'); t.innerHTML = widget;
     shadowRoot.appendChild(t.content.cloneNode(true));
     currentElementIds = new Set(elements.map(function(e) { return e.id; }));
     attachEvents();
     attachElementEvents();
     attachAgentEvents();
+    attachModeEvents();
   }
 
   function renderIncremental(elements, summary) {
@@ -1006,6 +1050,56 @@ const Widget = (function() {
     }
   }
 
+  // ============ MODO DEL WIDGET ============
+
+  function saveWidgetMode() {
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, widgetMode);
+    } catch (e) {}
+  }
+
+  function loadWidgetMode() {
+    try {
+      const saved = localStorage.getItem(MODE_STORAGE_KEY);
+      if (saved === 'ia' || saved === 'manual') {
+        widgetMode = saved;
+      }
+    } catch (e) {}
+  }
+
+  function setWidgetMode(mode) {
+    if (mode !== 'ia' && mode !== 'manual') return;
+    widgetMode = mode;
+    saveWidgetMode();
+    
+    const widget = shadowRoot.querySelector('.wc-widget');
+    const agentSection = shadowRoot.querySelector('.wc-agent-section');
+    const manualSection = shadowRoot.querySelector('.wc-manual-section');
+    const modeBtns = shadowRoot.querySelectorAll('.wc-mode-btn');
+    
+    // Actualizar clase del widget para mostrar/ocultar elementos
+    if (widget) {
+      widget.classList.remove('mode-ia', 'mode-manual');
+      widget.classList.add('mode-' + mode);
+    }
+    
+    modeBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+    
+    if (agentSection) agentSection.classList.toggle('hidden', mode !== 'ia');
+    if (manualSection) manualSection.classList.toggle('hidden', mode !== 'manual');
+  }
+
+  function attachModeEvents() {
+    shadowRoot.querySelectorAll('.wc-mode-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setWidgetMode(btn.dataset.mode);
+      });
+    });
+  }
+
   return { 
     init: init, 
     render: render, 
@@ -1015,7 +1109,9 @@ const Widget = (function() {
     isMinimized: function() { return isMinimized; },
     toggleSelectionMode: toggleSelectionMode,
     isSelectionMode: function() { return selectionMode; },
-    expandElementInWidget: expandElementInWidget
+    expandElementInWidget: expandElementInWidget,
+    setMode: setWidgetMode,
+    getMode: function() { return widgetMode; }
   };
 })();
 
