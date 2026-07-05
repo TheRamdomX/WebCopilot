@@ -327,11 +327,18 @@
         getStats: getMemoryStats,
         invalidateElement: MemoryElements.invalidate
       },
-      
+
+      // Voice (MVP 6)
+      voice: {
+        start: (apiKey) => VoiceAgent.start(apiKey),
+        stop: () => VoiceAgent.stop(),
+        isActive: () => VoiceAgent.isActive()
+      },
+
       // Debug
       logStats: DOMInspector.logStats,
-      
-      version: '5.0.0'
+
+      version: '6.0.0'
     };
     
     console.log('WebCopilot listo');

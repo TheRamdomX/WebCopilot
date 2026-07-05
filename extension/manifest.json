@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WebCopilot",
-  "version": "5.2.0",
+  "version": "6.0.1",
   "description": "Navega la web con lenguaje natural usando IA",
   "permissions": [
     "activeTab",
@@ -21,6 +21,7 @@
         "content/dom-inspector.js",
         "content/actions.js",
         "content/agent.js",
+        "content/voice-agent.js",
         "content/widget.js",
         "content/content.js",
         "content/console-bridge.js"

@@ -152,6 +152,29 @@ const Widget = (function() {
     .wc-manual-title::before { content: '🎯'; }
     .wc-manual-hint { font-size: 12px; color: #6c7086; line-height: 1.5; }
     .wc-widget.mode-ia .wc-summary, .wc-widget.mode-ia .wc-elements-title, .wc-widget.mode-ia .wc-element-list, .wc-widget.mode-ia .wc-footer { display: none; }
+
+    /* Voice mode */
+    .wc-agent-mic { background: #45475a; border: none; color: #cdd6f4; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 16px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .wc-agent-mic:hover { background: #585b70; }
+    .wc-agent-mic.active { background: #f38ba8; color: #1e1e2e; }
+    .wc-agent-mic:disabled { opacity: 0.5; cursor: not-allowed; }
+    .wc-voice-panel { display: none; }
+    .wc-voice-panel.visible { display: block; animation: fadeIn 0.2s ease; }
+    .wc-voice-indicator { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 0; }
+    .wc-voice-dot { width: 10px; height: 10px; border-radius: 50%; background: #a6e3a1; flex-shrink: 0; animation: voicePulse 1.5s infinite; }
+    .wc-voice-dot.executing { background: #f9e2af; }
+    .wc-voice-dot.error { background: #f38ba8; animation: none; }
+    @keyframes voicePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+    .wc-voice-status-text { font-size: 11px; color: #6c7086; }
+    .wc-voice-transcript { max-height: 150px; overflow-y: auto; margin-bottom: 8px; }
+    .wc-voice-transcript::-webkit-scrollbar { width: 4px; }
+    .wc-voice-transcript::-webkit-scrollbar-thumb { background: #45475a; border-radius: 2px; }
+    .wc-voice-msg { padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; font-size: 12px; line-height: 1.4; word-break: break-word; }
+    .wc-voice-msg.user { background: #45475a; color: #cdd6f4; }
+    .wc-voice-msg.agent { background: #1e1e2e; color: #a6e3a1; border-left: 2px solid #a6e3a1; }
+    .wc-voice-msg.tool { background: #1e1e2e; color: #f9e2af; border-left: 2px solid #f9e2af; font-size: 10px; font-family: monospace; }
+    .wc-voice-stop { background: #f38ba8; border: none; color: #1e1e2e; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; width: 100%; transition: all 0.2s; }
+    .wc-voice-stop:hover { background: #e67a98; }
   `;
 
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
@@ -193,9 +216,18 @@ const Widget = (function() {
         <input type="password" class="wc-agent-config-input" id="wc-agent-apikey" placeholder="AIza...">
         <button class="wc-agent-config-btn" id="wc-agent-save-key">Guardar</button>
       </div>
-      <div class="wc-agent-input-row">
+      <div class="wc-agent-input-row" id="wc-agent-input-row">
         <textarea class="wc-agent-input" id="wc-agent-input" placeholder="Escribe una instrucción..." rows="1"></textarea>
         <button class="wc-agent-send" id="wc-agent-send">➤</button>
+        <button class="wc-agent-mic" id="wc-agent-mic" title="Modo voz">🎤</button>
+      </div>
+      <div class="wc-voice-panel" id="wc-voice-panel">
+        <div class="wc-voice-indicator">
+          <div class="wc-voice-dot" id="wc-voice-dot"></div>
+          <span class="wc-voice-status-text" id="wc-voice-status-text">Conectando...</span>
+        </div>
+        <div class="wc-voice-transcript" id="wc-voice-transcript"></div>
+        <button class="wc-voice-stop" id="wc-voice-stop">⏹ Detener voz</button>
       </div>
       <div class="wc-agent-response" id="wc-agent-response"></div>
       <div class="wc-agent-action" id="wc-agent-action">
@@ -251,6 +283,7 @@ const Widget = (function() {
     attachEvents();
     attachElementEvents();
     attachAgentEvents();
+    attachVoiceEvents();
     attachModeEvents();
   }
 
@@ -1048,6 +1081,150 @@ const Widget = (function() {
     } catch (e) {
       console.warn('No se pudo cargar la API key');
     }
+  }
+
+  // ============ VOZ ============
+
+  let voiceCurrentMsgEl = null;
+  let voiceCurrentMsgType = null;
+
+  function attachVoiceEvents() {
+    if (typeof VoiceAgent === 'undefined') return;
+
+    const micBtn = shadowRoot.querySelector('#wc-agent-mic');
+    const stopBtn = shadowRoot.querySelector('#wc-voice-stop');
+
+    micBtn.addEventListener('click', async () => {
+      if (VoiceAgent.isActive()) {
+        VoiceAgent.stop();
+        return;
+      }
+
+      if (!Agent.isConfigured()) {
+        showResponse('Configura tu API key de Gemini primero', 'error');
+        shadowRoot.querySelector('#wc-agent-config').classList.add('visible');
+        return;
+      }
+
+      try {
+        micBtn.classList.add('active');
+        micBtn.disabled = true;
+        showVoicePanel();
+
+        const encoded = localStorage.getItem(STORAGE_KEY);
+        if (!encoded) throw new Error('API key no encontrada');
+        const key = atob(encoded);
+
+        await VoiceAgent.start(key);
+        micBtn.disabled = false;
+      } catch (err) {
+        micBtn.classList.remove('active');
+        micBtn.disabled = false;
+        hideVoicePanel();
+        showResponse('Error al iniciar voz: ' + err.message, 'error');
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      VoiceAgent.stop();
+    });
+
+    VoiceAgent.setCallbacks({
+      onStatus: (status, message) => {
+        updateVoiceStatus(status, message);
+        if (status === 'idle' || status === 'disconnected') {
+          const mic = shadowRoot.querySelector('#wc-agent-mic');
+          if (mic) {
+            mic.classList.remove('active');
+            mic.disabled = false;
+          }
+          hideVoicePanel();
+        }
+      },
+      onUserTranscript: (text) => {
+        appendVoiceTranscript('user', text);
+      },
+      onAgentTranscript: (text) => {
+        appendVoiceTranscript('agent', text);
+      },
+      onToolExec: (name, args) => {
+        voiceCurrentMsgEl = null;
+        voiceCurrentMsgType = null;
+        const argsStr = Object.keys(args).length > 0 ? JSON.stringify(args) : '';
+        addVoiceMessage('tool', `${name}(${argsStr})`);
+      },
+      onTurnComplete: () => {
+        voiceCurrentMsgEl = null;
+        voiceCurrentMsgType = null;
+      },
+      onSessionEnd: () => {
+        const mic = shadowRoot.querySelector('#wc-agent-mic');
+        if (mic) {
+          mic.classList.remove('active');
+          mic.disabled = false;
+        }
+        hideVoicePanel();
+        showResponse('Sesión de voz finalizada', '');
+      }
+    });
+  }
+
+  function showVoicePanel() {
+    const panel = shadowRoot.querySelector('#wc-voice-panel');
+    const inputRow = shadowRoot.querySelector('#wc-agent-input-row');
+    const response = shadowRoot.querySelector('#wc-agent-response');
+    const action = shadowRoot.querySelector('#wc-agent-action');
+
+    if (panel) panel.classList.add('visible');
+    if (inputRow) inputRow.style.display = 'none';
+    if (response) response.classList.remove('visible');
+    if (action) action.classList.remove('visible');
+
+    const transcript = shadowRoot.querySelector('#wc-voice-transcript');
+    if (transcript) transcript.innerHTML = '';
+    voiceCurrentMsgEl = null;
+    voiceCurrentMsgType = null;
+  }
+
+  function hideVoicePanel() {
+    const panel = shadowRoot.querySelector('#wc-voice-panel');
+    const inputRow = shadowRoot.querySelector('#wc-agent-input-row');
+
+    if (panel) panel.classList.remove('visible');
+    if (inputRow) inputRow.style.display = '';
+  }
+
+  function updateVoiceStatus(status, message) {
+    const dot = shadowRoot.querySelector('#wc-voice-dot');
+    const text = shadowRoot.querySelector('#wc-voice-status-text');
+    if (text) text.textContent = message;
+    if (dot) {
+      dot.className = 'wc-voice-dot';
+      if (status === 'executing') dot.classList.add('executing');
+      if (status === 'error') dot.classList.add('error');
+    }
+  }
+
+  function appendVoiceTranscript(type, text) {
+    if (voiceCurrentMsgType === type && voiceCurrentMsgEl) {
+      voiceCurrentMsgEl.textContent += text;
+    } else {
+      voiceCurrentMsgEl = addVoiceMessage(type, text);
+      voiceCurrentMsgType = type;
+    }
+    const transcript = shadowRoot.querySelector('#wc-voice-transcript');
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }
+
+  function addVoiceMessage(type, text) {
+    const transcript = shadowRoot.querySelector('#wc-voice-transcript');
+    if (!transcript) return null;
+    const msg = document.createElement('div');
+    msg.className = `wc-voice-msg ${type}`;
+    msg.textContent = text;
+    transcript.appendChild(msg);
+    transcript.scrollTop = transcript.scrollHeight;
+    return msg;
   }
 
   // ============ MODO DEL WIDGET ============
