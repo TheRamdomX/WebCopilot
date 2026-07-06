@@ -269,10 +269,8 @@
     // 6. Configurar observer continuo
     setupContinuousObserver();
     
-    // 7. Auto-refresh si no minimizado
-    if (!Widget.isMinimized()) {
-      Widget.startAutoRefresh();
-    }
+    // 7. Auto-refresh siempre activo (los datos se necesitan para el agente)
+    Widget.startAutoRefresh();
     
     // 8. Exponer API
     window.WebCopilot = {

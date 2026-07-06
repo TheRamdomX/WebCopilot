@@ -20,36 +20,36 @@ const Agent = (function() {
 
   // ============ PROMPT DEL SISTEMA ============
 
-  const SYSTEM_PROMPT = 
-  
-`Eres un agente de navegación web. Tu trabajo es traducir instrucciones en lenguaje natural a acciones específicas sobre elementos de la página.
+  const SYSTEM_PROMPT =
+`Eres un ejecutor de acciones web. Traduces instrucciones a UNA acción concreta sobre un elemento de la página. No das sugerencias, no explicas qué más se podría hacer, no ofreces pasos siguientes. Solo ejecutas lo pedido.
 
-REGLAS ESTRICTAS:
-1. Solo puedes usar las acciones: click, type, focus, hover, select, check
-2. Solo puedes actuar sobre elementos que existen en la lista proporcionada
-3. Si la instrucción es ambigua, pide aclaración
-4. Si no encuentras el elemento, indica que no está disponible
-5. NUNCA inventes elementos o referencias que no estén en la lista
+ACCIONES DISPONIBLES: click, type, focus, hover, select, check
 
-FORMATO DE RESPUESTA (JSON estricto):
+REGLAS:
+1. Usa SOLO elementos de la lista proporcionada (por su "id" exacto, ej: "wc-el-3")
+2. Si la instrucción es ambigua, pide aclaración
+3. Si no encuentras el elemento, di que no está disponible
+4. NUNCA inventes IDs ni elementos que no estén en la lista
+5. El campo "reasoning" debe ser máximo 10 palabras
+6. No sugieras acciones adicionales ni pasos siguientes
+
+RESPUESTA (JSON estricto):
 {
-  "understood": true/false,
-  "reasoning": "explicación breve de tu interpretación",
+  "understood": true,
+  "reasoning": "máximo 10 palabras",
   "action": {
     "type": "click|type|focus|hover|select|check",
     "elementId": "wc-el-X",
-    "elementDescription": "descripción del elemento elegido",
-    "value": "valor para type/select (opcional)"
-  },
-  "clarification": "pregunta si necesitas más información (solo si understood=false)"
+    "value": "solo para type/select"
+  }
 }
 
-Si no puedes ejecutar la acción, responde:
+Si NO puedes ejecutar:
 {
   "understood": false,
-  "reasoning": "explicación del problema",
+  "reasoning": "por qué no",
   "action": null,
-  "clarification": "pregunta o mensaje al usuario"
+  "clarification": "pregunta breve"
 }`;
 
   // ============ BUILD ============
@@ -273,15 +273,14 @@ ${memoryContext ? 'NOTA: Si hay patrones exitosos relevantes, prioriza esos elem
     elementInfo: validation.element
     };
 
+    // 7. Ejecutar directamente si autoExecute está habilitado
+    if (options.autoExecute) {
+      return await confirmAndExecute(proposedAction);
+    }
+
     notifyActionProposed(proposedAction);
     notifyStatus('proposed', 'Confirmar?');
 
-/*
-    // 7. Ejecutar si autoExecute está habilitado
-    if (options.autoExecute) {
-    return await confirmAndExecute(proposedAction);
-    }
-*/
     isProcessing = false;
 
     return {
@@ -295,20 +294,20 @@ ${memoryContext ? 'NOTA: Si hay patrones exitosos relevantes, prioriza esos elem
    * Confirma y ejecuta una acción propuesta
    */
   async function confirmAndExecute(action) {
-
+    isProcessing = true;
     notifyStatus('executing', `Ejecutando ${action.type}...`);
 
     const result = await executeAction(action);
-    
-    if (result.success) {
-    notifyStatus('success', `✓ ${action.type} ejecutado`);
-    notifyActionExecuted(action, result);
-    return { success: true, action, result };
-    } else {
-    notifyStatus('error', result.reason || 'Error en ejecución');
-    return { success: false, error: result.reason, action };
-    }
+    isProcessing = false;
 
+    if (result.success) {
+      notifyStatus('success', `✓ ${action.type} ejecutado`);
+      notifyActionExecuted(action, result);
+      return { success: true, action, result };
+    } else {
+      notifyStatus('error', result.reason || 'Error en ejecución');
+      return { success: false, error: result.reason, action };
+    }
   }
 
   // Cancela la acción pendiente

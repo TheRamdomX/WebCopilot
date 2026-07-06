@@ -9,8 +9,10 @@ const Widget = (function() {
   let autoRefreshInterval = null, currentElementIds = new Set();
   let selectionMode = false;
   let currentState = 'idle'; // 'idle' | 'listening' | 'text' | 'settings' | 'manual'
+  let autoExecute = false;
   const AUTO_REFRESH_DELAY = 1000;
   const STORAGE_KEY = 'webcopilot_gemini_key';
+  const AUTOEXEC_KEY = 'webcopilot_auto_execute';
   const DRAG_THRESHOLD = 5;
 
   const STYLES = `
@@ -112,6 +114,14 @@ const Widget = (function() {
     .wc-settings-save { background: rgba(139,124,246,0.15); border: 1px solid rgba(139,124,246,0.3); color: #b3a6fb; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-size: 12px; width: 100%; transition: all .2s; }
     .wc-settings-save:hover { background: rgba(139,124,246,0.25); }
     .wc-settings-status { font-size: 11px; color: #8b8b96; text-align: center; }
+    .wc-settings-toggle { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+    .wc-settings-toggle-label { font-size: 12px; color: #8b8b96; }
+    .wc-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .wc-switch input { opacity: 0; width: 0; height: 0; }
+    .wc-switch-slider { position: absolute; inset: 0; background: #2a2a35; border-radius: 20px; cursor: pointer; transition: background .2s; }
+    .wc-switch-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; bottom: 3px; background: #5c5c66; border-radius: 50%; transition: all .2s; }
+    .wc-switch input:checked + .wc-switch-slider { background: rgba(139,124,246,0.4); }
+    .wc-switch input:checked + .wc-switch-slider::before { transform: translateX(16px); background: #b3a6fb; }
 
     /* Manual state */
     .wc-state-manual { flex-direction: column; gap: 10px; }
@@ -271,6 +281,10 @@ const Widget = (function() {
           <label class="wc-settings-label">Clave de API</label>
           <input class="wc-settings-key" type="password" placeholder="AIza...">
           <button class="wc-settings-save">Guardar</button>
+          <div class="wc-settings-toggle">
+            <span class="wc-settings-toggle-label">Ejecutar sin confirmar</span>
+            <label class="wc-switch"><input type="checkbox" class="wc-autoexec-toggle"><span class="wc-switch-slider"></span></label>
+          </div>
           <div class="wc-settings-status"></div>
         </div>
         <div class="wc-state-manual">
@@ -398,8 +412,6 @@ const Widget = (function() {
     // Side effects
     if (newState === 'listening' && prev !== 'listening') startVoice();
     if (prev === 'listening' && newState !== 'listening') stopVoice();
-    if (newState === 'manual') startAutoRefresh();
-    if (prev === 'manual' && newState !== 'manual' && newState !== 'idle') stopAutoRefresh();
     if (newState === 'text') {
       const input = shadowRoot.querySelector('.wc-text-input');
       if (input) setTimeout(() => input.focus(), 100);
@@ -407,6 +419,8 @@ const Widget = (function() {
     if (newState === 'settings') {
       const keyInput = shadowRoot.querySelector('.wc-settings-key');
       if (keyInput) keyInput.value = Agent.isConfigured() ? '••••••••' : '';
+      const toggle = shadowRoot.querySelector('.wc-autoexec-toggle');
+      if (toggle) toggle.checked = autoExecute;
     }
 
     // If leaving manual and selection was active, disable it
@@ -530,7 +544,7 @@ const Widget = (function() {
 
   function startAutoRefresh() {
     if (autoRefreshInterval) return;
-    autoRefreshInterval = setInterval(function() { if (currentState === 'manual') window.WebCopilot.refresh(); }, AUTO_REFRESH_DELAY);
+    autoRefreshInterval = setInterval(function() { window.WebCopilot.refresh(); }, AUTO_REFRESH_DELAY);
   }
 
   function stopAutoRefresh() {
@@ -885,8 +899,16 @@ const Widget = (function() {
     const apiKeyInput = shadowRoot.querySelector('.wc-settings-key');
     const confirmBtn = shadowRoot.querySelector('.wc-agent-confirm');
     const cancelBtn = shadowRoot.querySelector('.wc-agent-cancel');
+    const autoExecToggle = shadowRoot.querySelector('.wc-autoexec-toggle');
 
     loadApiKey();
+    loadAutoExecute();
+
+    // Auto-execute toggle
+    autoExecToggle.addEventListener('change', () => {
+      autoExecute = autoExecToggle.checked;
+      try { localStorage.setItem(AUTOEXEC_KEY, autoExecute ? '1' : '0'); } catch (e) {}
+    });
 
     // Save API key
     saveKeyBtn.addEventListener('click', () => {
@@ -957,9 +979,13 @@ const Widget = (function() {
     hideActionProposal();
     showResponse('🤔 Analizando...', 'thinking');
 
-    const result = await Agent.processInstruction(instruction);
+    const result = await Agent.processInstruction(instruction, { autoExecute });
     if (result.success) {
-      if (result.requiresConfirmation) showResponse(result.action.reasoning, '');
+      if (result.requiresConfirmation) {
+        showResponse(result.action.reasoning, '');
+      } else if (autoExecute) {
+        showResponse('✓ Acción ejecutada', 'success');
+      }
     } else if (result.clarification) {
       showResponse(result.clarification, 'clarification');
     } else if (result.error) {
@@ -1030,6 +1056,14 @@ const Widget = (function() {
         Agent.setApiKey(key);
       }
     } catch (e) { console.warn('No se pudo cargar la API key'); }
+  }
+
+  function loadAutoExecute() {
+    try {
+      autoExecute = localStorage.getItem(AUTOEXEC_KEY) === '1';
+      const toggle = shadowRoot.querySelector('.wc-autoexec-toggle');
+      if (toggle) toggle.checked = autoExecute;
+    } catch (e) {}
   }
 
   // ============ VOICE ============
