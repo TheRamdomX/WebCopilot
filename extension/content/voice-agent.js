@@ -28,20 +28,20 @@ const VoiceAgent = (function() {
 
   // ============ SYSTEM PROMPT ============
 
-  const SYSTEM_PROMPT = `Eres WebCopilot Voice, un asistente de navegación web controlado por voz.
-Tu trabajo es ayudar al usuario a interactuar con la página web actual usando comandos de voz.
-Hablas en español, de forma clara, amigable y concisa.
+  const SYSTEM_PROMPT = `Eres WebCopilot Voice, un ejecutor de acciones web por voz. Hablas español, conciso y directo.
 
 REGLAS:
-1. Usa las herramientas disponibles para ejecutar acciones en la página
-2. Antes de ejecutar una acción, confirma brevemente lo que vas a hacer
-3. Si no encuentras el elemento solicitado, indica que no está disponible
-4. Para acciones destructivas o irreversibles, pide confirmación verbal antes de ejecutar
-5. Cuando el usuario indique que no necesita nada más o quiera terminar, despídete brevemente y llama end_session
+1. {confirmationRule}
+2. Los elementos con "inViewport": true son los que el usuario ve ahora. Priorízalos.
+3. Usa "context" para desambiguar entre elementos similares (indica a qué sección/post/comentario pertenecen).
+4. Si tras una acción recibes un [CONTEXTO ACTUALIZADO], úsalo — los IDs de elementos habrán cambiado.
+5. No digas "no tengo acceso" — si no ves un elemento, di "no lo encuentro en la lista de elementos".
+6. Cuando el usuario termine, llama end_session.
+7. Respuestas de voz máximo 2 oraciones. No sugieras pasos siguientes.
 
 PÁGINA ACTUAL: {pageTitle} ({pageUrl})
 
-ELEMENTOS INTERACTIVOS DISPONIBLES:
+ELEMENTOS DISPONIBLES (los primeros son visibles en pantalla):
 {elements}`;
 
   // ============ TOOL DECLARATIONS ============
@@ -192,21 +192,48 @@ ELEMENTOS INTERACTIVOS DISPONIBLES:
 
   // ============ CONTEXTO DE ELEMENTOS ============
 
+  const MAX_VOICE_ELEMENTS = 60;
+
   function buildElementContext() {
     const elements = window.WebCopilot?.getElements?.() || [];
-    return elements.map(el => ({
-      id: el.id,
-      type: el.type,
-      text: (el.text || '').slice(0, 100),
-      tag: el.tag,
-      inputType: el.inputType || null,
-      isDisabled: el.isDisabled || false
+    const mapped = elements.map(el => {
+      const entry = {
+        id: el.id,
+        type: el.type,
+        text: (el.text || '').slice(0, 100),
+        tag: el.tag,
+        inputType: el.inputType || null,
+        isDisabled: el.isDisabled || false,
+        inViewport: el.inViewport || false
+      };
+      if (el.nearestContext) entry.context = el.nearestContext;
+      return entry;
+    });
+    const inView = mapped.filter(e => e.inViewport);
+    const offView = mapped.filter(e => !e.inViewport);
+    return [...inView, ...offView].slice(0, MAX_VOICE_ELEMENTS);
+  }
+
+  function sendContextUpdate() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const elements = buildElementContext();
+    const msg = `[CONTEXTO ACTUALIZADO] Página: ${document.title} (${location.href})\nElementos disponibles ahora:\n${JSON.stringify(elements, null, 2)}`;
+    ws.send(JSON.stringify({
+      clientContent: {
+        turns: [{ role: 'user', parts: [{ text: msg }] }],
+        turnComplete: true
+      }
     }));
   }
 
   function buildSystemPrompt() {
     const elements = buildElementContext();
+    const autoExec = localStorage.getItem('webcopilot_auto_execute') === '1';
+    const confirmationRule = autoExec
+      ? 'Ejecuta las acciones inmediatamente usando las herramientas. No pidas confirmación salvo acciones destructivas.'
+      : 'Antes de ejecutar una acción, confirma brevemente lo que vas a hacer. Espera la aprobación verbal del usuario.';
     return SYSTEM_PROMPT
+      .replace('{confirmationRule}', confirmationRule)
       .replace('{pageTitle}', document.title || 'Sin título')
       .replace('{pageUrl}', location.href)
       .replace('{elements}', elements.length > 0
@@ -414,6 +441,15 @@ ELEMENTOS INTERACTIVOS DISPONIBLES:
       }
 
       sendToolResponse(fc.id, fc.name, result);
+
+      // Después de acciones que pueden cambiar el DOM, actualizar contexto
+      if (result.success && (fc.name === 'click' || fc.name === 'select_option' || fc.name === 'check')) {
+        setTimeout(() => {
+          window.WebCopilot?.refresh?.(true);
+          setTimeout(sendContextUpdate, 500);
+        }, 800);
+      }
+
       callbacks.onStatus?.('listening', 'Escuchando...');
     }
   }

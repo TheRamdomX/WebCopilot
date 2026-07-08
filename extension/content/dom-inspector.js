@@ -212,21 +212,75 @@ const DOMInspector = (function() {
     return info;
   }
 
+  function isInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return cx >= 0 && cx <= window.innerWidth && cy >= 0 && cy <= window.innerHeight;
+  }
+
+  const SEMANTIC_CONTAINERS = new Set([
+    'article', 'section', 'aside', 'main', 'nav', 'header', 'footer', 'dialog', 'form'
+  ]);
+  const SEMANTIC_ROLES = new Set([
+    'article', 'comment', 'region', 'dialog', 'form', 'complementary',
+    'navigation', 'main', 'contentinfo', 'banner', 'feed', 'list'
+  ]);
+  const CONTEXT_TESTID_PATTERNS = /comment|post|thread|card|item|tweet|message|reply/i;
+
+  function getSemanticContext(el) {
+    let current = el.parentElement;
+    let depth = 0;
+    while (current && current !== document.body && depth < 12) {
+      const tag = current.tagName.toLowerCase();
+      const role = current.getAttribute('role');
+      const testId = current.getAttribute('data-testid') || current.getAttribute('data-test-id') || '';
+
+      const isContainer = SEMANTIC_CONTAINERS.has(tag)
+        || (role && SEMANTIC_ROLES.has(role))
+        || CONTEXT_TESTID_PATTERNS.test(testId);
+
+      if (isContainer) {
+        const label = current.getAttribute('aria-label');
+        if (label) return label.slice(0, 60);
+
+        const labelledBy = current.getAttribute('aria-labelledby');
+        if (labelledBy) {
+          const labelEl = document.getElementById(labelledBy);
+          if (labelEl?.textContent?.trim()) return labelEl.textContent.trim().slice(0, 60);
+        }
+
+        const heading = current.querySelector('h1, h2, h3, h4, h5, h6');
+        if (heading?.textContent?.trim()) return heading.textContent.trim().slice(0, 60);
+
+        if (testId) return testId;
+
+        const preview = current.textContent?.trim();
+        if (preview && preview.length > 5) return preview.slice(0, 60);
+      }
+      current = current.parentElement;
+      depth++;
+    }
+    return null;
+  }
+
   function inspect(el) {
     const type = getSemanticType(el);
     const text = getAccessibleText(el);
     const position = getPosition(el);
     const tag = el.tagName.toLowerCase();
-    
+
     const info = {
       id: `wc-el-${++idCounter}`,
       type,
       text,
       position,
       tag,
+      inViewport: isInViewport(el),
+      nearestContext: getSemanticContext(el),
       ...getElementInfo(el)
     };
-    
+
     registerElement(el, info);
     return info;
   }

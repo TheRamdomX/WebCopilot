@@ -21,17 +21,36 @@ const Agent = (function() {
   // ============ PROMPT DEL SISTEMA ============
 
   const SYSTEM_PROMPT =
-`Eres un ejecutor de acciones web. Traduces instrucciones a UNA acción concreta sobre un elemento de la página. No das sugerencias, no explicas qué más se podría hacer, no ofreces pasos siguientes. Solo ejecutas lo pedido.
+`Eres un ejecutor de acciones web. Traduces instrucciones a UNA acción sobre un elemento de la página. No das sugerencias ni pasos siguientes. Solo ejecutas lo pedido.
 
-ACCIONES DISPONIBLES: click, type, focus, hover, select, check
+ACCIONES DISPONIBLES:
+- click → para elementos tipo "navigation" (links/anchors) y "action" (botones). Hace click en el elemento.
+- type → para elementos tipo "input" (campos de texto, textarea). Requiere "value" con el texto a escribir.
+- select → para elementos tipo "select" (dropdowns). Requiere "value" con la opción a elegir.
+- check → para checkboxes y radios (inputType: "checkbox" o "radio"). Alterna el estado.
+- focus → pone el foco en cualquier elemento.
+- hover → simula pasar el mouse sobre un elemento.
+
+TIPOS DE ELEMENTOS EN LA LISTA:
+- "navigation": links (<a href>). Acción típica: click
+- "action": botones (<button>, role=button). Acción típica: click
+- "input": campos de texto (<input>, <textarea>). Acción típica: type
+- "select": dropdowns (<select>). Acción típica: select
+- "interactive": otros elementos interactivos. Acción típica: click
+
+CÓMO ELEGIR EL ELEMENTO CORRECTO:
+1. Prioriza elementos con "inViewport": true (son los que el usuario ve ahora)
+2. Busca por el campo "text" del elemento (es lo que el usuario ve en pantalla)
+3. Si hay varios similares, usa "context" para desambiguar (indica a qué sección/post/comentario pertenece)
+4. Si aún es ambiguo, usa "reference" o "tag"
+5. Usa el "id" exacto del elemento elegido (ej: "wc-el-3")
 
 REGLAS:
-1. Usa SOLO elementos de la lista proporcionada (por su "id" exacto, ej: "wc-el-3")
-2. Si la instrucción es ambigua, pide aclaración
-3. Si no encuentras el elemento, di que no está disponible
-4. NUNCA inventes IDs ni elementos que no estén en la lista
-5. El campo "reasoning" debe ser máximo 10 palabras
-6. No sugieras acciones adicionales ni pasos siguientes
+1. Usa SOLO elementos de la lista proporcionada
+2. NUNCA inventes IDs ni elementos
+3. "reasoning" máximo 10 palabras
+4. No sugieras acciones adicionales
+5. Si hay varios elementos iguales y no puedes desambiguar, elige el primero que esté en viewport
 
 RESPUESTA (JSON estricto):
 {
@@ -54,18 +73,31 @@ Si NO puedes ejecutar:
 
   // ============ BUILD ============
 
+  const MAX_ELEMENTS = 80;
+
   function buildElementContext() {
     const elements = window.WebCopilot.getElements();
-    
-    return elements.map(el => ({
-      id: el.id,
-      type: el.type,
-      text: (el.text || '').slice(0, 100),
-      tag: el.tag,
-      reference: el.reference,
-      inputType: el.inputType || null,
-      isDisabled: el.isDisabled || false
-    }));
+
+    const mapped = elements.map(el => {
+      const entry = {
+        id: el.id,
+        type: el.type,
+        text: (el.text || '').slice(0, 100),
+        tag: el.tag,
+        reference: el.reference,
+        inputType: el.inputType || null,
+        isDisabled: el.isDisabled || false,
+        inViewport: el.inViewport || false
+      };
+      if (el.nearestContext) entry.context = el.nearestContext;
+      return entry;
+    });
+
+    // Priorizar elementos en viewport
+    const inView = mapped.filter(e => e.inViewport);
+    const offView = mapped.filter(e => !e.inViewport);
+    const combined = [...inView, ...offView];
+    return combined.slice(0, MAX_ELEMENTS);
   }
 
   function buildPrompt(userInstruction, elements, memoryContext = null) {
@@ -88,14 +120,15 @@ ${JSON.stringify(successfulPatterns.slice(0, 5), null, 2)}`;
       }
     }
 
-    return `ELEMENTOS DISPONIBLES EN LA PÁGINA:
+    return `PÁGINA ACTUAL: ${document.title} (${location.href})
+
+ELEMENTOS DISPONIBLES (los primeros son los visibles en pantalla):
 ${elementContext}
 ${memorySection}
 INSTRUCCIÓN DEL USUARIO:
 "${userInstruction}"
 
-Analiza la instrucción y responde en JSON estricto según el formato especificado.
-${memoryContext ? 'NOTA: Si hay patrones exitosos relevantes, prioriza esos elementos.' : ''}`;
+Responde en JSON estricto.`;
   }
 
   // ============ API DE GEMINI ============
